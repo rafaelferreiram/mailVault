@@ -1,0 +1,14 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
+  <!-- macOS Big Sur rounded rect background -->
+  <rect width="1024" height="1024" rx="224" ry="224" fill="#0d1a26"/>
+
+  <!-- Icon mark centered and scaled up (original 120x100 → ~560x467, centered in 1024) -->
+  <!-- Scale factor ~4.67, centered: x offset = (1024 - 560) / 2 = 232, y offset = (1024 - 467) / 2 = 278 -->
+  <g transform="translate(218, 268) scale(4.8)">
+    <rect x="0"  y="8"  width="88" height="12" rx="0" fill="#ffffff"/>
+    <rect x="12" y="30" width="76" height="12" rx="0" fill="#ffffff"/>
+    <rect x="24" y="52" width="64" height="12" rx="0" fill="#ffffff"/>
+    <rect x="36" y="74" width="52" height="12" rx="0" fill="#ffffff"/>
+    <rect x="104" y="0" width="10" height="100" rx="0" fill="#ffffff"/>
+  </g>
+</svg>

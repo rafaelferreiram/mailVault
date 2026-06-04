@@ -1,0 +1,20 @@
+<svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" width="300" height="200">
+  <!-- Icon mark centered (120 wide, offset to center in 300) -->
+  <g transform="translate(90, 8)">
+    <rect x="0"  y="0"  width="88" height="12" rx="0" fill="#1a1a1a"/>
+    <rect x="12" y="22" width="76" height="12" rx="0" fill="#1a1a1a"/>
+    <rect x="24" y="44" width="64" height="12" rx="0" fill="#1a1a1a"/>
+    <rect x="36" y="66" width="52" height="12" rx="0" fill="#1a1a1a"/>
+    <rect x="104" y="-8" width="10" height="92" rx="0" fill="#1a1a1a"/>
+  </g>
+
+  <!-- Wordmark centered -->
+  <text x="150" y="165"
+        text-anchor="middle"
+        font-family="'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="44"
+        letter-spacing="-0.5"
+        fill="#1a1a1a">
+    <tspan font-weight="300">mail</tspan><tspan font-weight="700">vault</tspan>
+  </text>
+</svg>
