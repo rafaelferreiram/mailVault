@@ -1,0 +1,151 @@
+{
+  "name": "mailvault",
+  "productName": "MailVault",
+  "version": "0.1.1",
+  "description": "MailVault — an intelligent email organization and cleanup desktop app for Gmail and Outlook.",
+  "main": "dist-electron/main.js",
+  "author": "MailVault",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/patch-electron-macos-brand.js && vite",
+    "build": "tsc -p tsconfig.node.json && tsc -p tsconfig.json && vite build",
+    "build:renderer": "vite build --mode production",
+    "build:main": "node scripts/verify-electron-build.js",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:patch": "bash scripts/deploy.sh --patch",
+    "deploy:minor": "bash scripts/deploy.sh --minor",
+    "deploy:major": "bash scripts/deploy.sh --major",
+    "deploy:dry": "bash scripts/deploy.sh --no-version-bump",
+    "preview": "vite preview",
+    "cli": "npm run build && electron dist-electron/main.js --cli",
+    "cli:fast": "vite build --mode development && electron dist-electron/main.js --cli",
+    "lint": "eslint . --ext .ts,.tsx",
+    "rebuild": "electron-builder install-app-deps",
+    "postinstall": "node scripts/patch-electron-macos-brand.js; electron-builder install-app-deps 2>/dev/null || true",
+    "gen-icons": "bash scripts/generate-icons.sh",
+    "package": "npm run build && electron-builder",
+    "package:mac": "npm run build && electron-builder --mac --arm64 --x64",
+    "package:win": "npm run build && electron-builder --win",
+    "package:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.10.0",
+    "chalk": "^5.6.2",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "electron-store": "^10.0.0",
+    "keytar": "^7.9.0",
+    "lucide-react": "^0.453.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.13.0",
+    "uuid": "^14.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.8.1",
+    "@typescript-eslint/parser": "^8.8.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.0.2",
+    "electron-builder": "^25.1.8",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.12",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "com.mailvault.app",
+    "productName": "MailVault",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/keytar/**/*",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": [
+          "icon.icns",
+          "dmg-background.png",
+          "entitlements.mac.plist",
+          "brand/**"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "extendInfo": {
+        "CFBundleDisplayName": "MailVault",
+        "CFBundleName": "MailVault"
+      },
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "darkModeSupport": true,
+      "minimumSystemVersion": "13.0"
+    },
+    "dmg": {
+      "title": "Install MailVault",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 130,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

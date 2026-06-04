@@ -1,0 +1,154 @@
+.dashboard-page {
+  --dash-gutter: 12px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--dash-gutter);
+  padding: var(--dash-gutter);
+}
+
+.dashboard-col-8 {
+  grid-column: span 8;
+}
+.dashboard-col-4 {
+  grid-column: span 4;
+}
+.dashboard-col-12 {
+  grid-column: span 12;
+}
+
+@media (max-width: 1279px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .dashboard-col-8 {
+    grid-column: span 6;
+  }
+  .dashboard-col-4 {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 899px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-col-8,
+  .dashboard-col-4,
+  .dashboard-col-12 {
+    grid-column: span 1;
+  }
+}
+
+.dashboard-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: var(--dash-gutter);
+  margin-bottom: 0;
+  background: rgb(var(--color-bg-surface));
+  border: 1px solid rgb(var(--color-border));
+}
+
+.dashboard-kpi-tile {
+  padding: 14px 16px;
+  border-right: 1px solid rgb(var(--color-border-subtle));
+}
+.dashboard-kpi-tile:last-child {
+  border-right: none;
+}
+
+.dashboard-kpi-tile--alert {
+  border-left: 2px solid rgb(var(--color-warn));
+}
+
+.dashboard-kpi-tile--danger {
+  border-left: 2px solid rgb(var(--color-danger));
+}
+
+@media (max-width: 899px) {
+  .dashboard-kpi-strip {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-kpi-tile {
+    border-right: none;
+    border-bottom: 1px solid rgb(var(--color-border-subtle));
+  }
+  .dashboard-kpi-tile:last-child {
+    border-bottom: none;
+  }
+}
+
+.dashboard-live-dot {
+  animation: dashboard-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dashboard-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.dashboard-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--color-bg-hover)) 0%,
+    rgb(var(--color-bg-elevated)) 50%,
+    rgb(var(--color-bg-hover)) 100%
+  );
+  background-size: 200% 100%;
+  animation: dashboard-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes dashboard-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.dashboard-confetti {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.dashboard-confetti span {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  animation: confetti-fall 1s ease-out forwards;
+}
+
+@keyframes confetti-fall {
+  from {
+    transform: translateY(-8px) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(48px) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+.dashboard-bar-enter {
+  animation: bar-grow 0.5s ease-out forwards;
+  transform-origin: bottom;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}

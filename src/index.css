@@ -1,0 +1,228 @@
+@import './styles/themes.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* `html.compact` is the legacy density toggle from the top-bar Eye button.
+     Kept for backwards compat — the Personalization Panel writes
+     `data-density` instead, which the themes.css cascade picks up. */
+  html.compact {
+    --row-h: 28px;
+    --sidebar-item-h: 30px;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+  }
+
+  body {
+    background-color: rgb(var(--color-bg));
+    color: rgb(var(--color-fg));
+    font-family: theme('fontFamily.sans');
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    overflow: hidden;
+    font-size: var(--font-base, 13px);
+    line-height: 19px;
+    letter-spacing: var(--letter-spacing, 0);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgb(var(--color-bg-inset));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--color-border));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--color-border-strong));
+  }
+
+  ::selection {
+    background: rgb(var(--color-accent) / 0.16);
+    color: rgb(var(--color-accent));
+  }
+
+  input,
+  button,
+  select,
+  textarea {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  /* ─── Surfaces ───────────────────────────────────────────────────── */
+  .panel {
+    @apply bg-bg-elevated border border-border;
+  }
+  .panel-inset {
+    @apply bg-bg-inset border border-border-subtle;
+  }
+
+  /* ─── Labels (uppercase tracking-wide micro-labels) ────────────── */
+  .label-mono {
+    @apply font-mono text-[10px] uppercase tracking-[0.14em] text-fg-muted;
+  }
+  .label-mono-strong {
+    @apply font-mono text-[10px] uppercase tracking-[0.14em] text-fg;
+  }
+
+  /* ─── Buttons ─────────────────────────────────────────────────────
+     Sharp corners. Uppercase tracking. No drop shadows. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-3 h-7 text-[11px]
+           font-medium uppercase tracking-[0.08em] border transition-colors
+           disabled:opacity-40 disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary {
+    @apply bg-accent/10 border-accent/40 text-accent
+           hover:bg-accent/20 hover:border-accent;
+  }
+  .btn-secondary {
+    @apply bg-bg-elevated border-border text-fg
+           hover:bg-bg-hover hover:border-border-strong;
+  }
+  .btn-ghost {
+    @apply border-transparent text-fg-muted hover:text-fg hover:bg-bg-hover;
+  }
+  .btn-danger {
+    @apply bg-danger/10 border-danger/40 text-danger
+           hover:bg-danger/20 hover:border-danger;
+  }
+  .btn-ok {
+    @apply bg-ok/10 border-ok/40 text-ok hover:bg-ok/20 hover:border-ok;
+  }
+
+  /* ─── Inputs ─────────────────────────────────────────────────────── */
+  .input {
+    @apply w-full bg-bg-inset border border-border h-7 px-2.5 text-sm
+           text-fg placeholder:text-fg-subtle focus:outline-none
+           focus:border-accent/60;
+  }
+
+  /* ─── Keyboard chip ──────────────────────────────────────────────── */
+  .kbd {
+    @apply inline-flex items-center justify-center min-w-[18px] h-[18px] px-1
+           border border-border bg-bg-inset font-mono text-[10px] text-fg-muted;
+  }
+
+  /* ─── Tables / data grids ────────────────────────────────────────── */
+  .grid-row {
+    height: var(--row-h);
+  }
+  .zebra > *:nth-child(even) {
+    background-color: rgb(var(--color-bg-row));
+  }
+
+  /* ─── Stage progress bar (segmented chunky stages) ───────────────── */
+  .stage-bar {
+    @apply flex gap-[2px] h-1.5 w-full;
+  }
+  .stage-seg {
+    @apply flex-1 bg-bg-inset border border-border-subtle relative overflow-hidden;
+  }
+  .stage-seg.done {
+    @apply bg-accent/40 border-accent/60;
+  }
+  .stage-seg.active {
+    @apply bg-accent/15 border-accent/50;
+  }
+  .stage-seg.active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgb(var(--color-accent));
+    transform: scaleX(var(--seg-fill, 0));
+    transform-origin: left;
+    transition: transform 200ms ease-out;
+    opacity: 0.65;
+  }
+
+  /* ─── Skeleton ───────────────────────────────────────────────────── */
+  .skeleton {
+    @apply bg-bg-hover animate-pulse-soft;
+  }
+
+  /* ─── Drag region ────────────────────────────────────────────────── */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* ─── macOS title bar (hiddenInset) — leave room for traffic lights ─
+     The window uses `titleBarStyle: 'hiddenInset'`, which paints the
+     close/min/max buttons over our content at top-left. We pad the
+     title bar leading edge to keep the brand from underlapping them.
+     `env(safe-area-inset-top)` covers MacBook Pro notch when fullscreen
+     with auto-hide menu bar. */
+  html.platform-mac .app-titlebar {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  html.platform-mac .mac-titlebar-pad {
+    padding-left: 84px;
+  }
+
+  /* ─── Terminal log line ──────────────────────────────────────────── */
+  .log-line {
+    @apply font-term text-[11px] leading-[16px] flex gap-2 px-3 py-[1px] animate-log-in;
+  }
+  .log-info {
+    @apply text-fg;
+  }
+  .log-discover {
+    @apply text-accent;
+  }
+  .log-warn {
+    @apply text-warn;
+  }
+  .log-ok {
+    @apply text-ok;
+  }
+  .log-err {
+    @apply text-danger;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  .text-cyan {
+    color: rgb(var(--color-accent));
+  }
+  /* fine 1px hairline divider */
+  .hairline-b {
+    box-shadow: inset 0 -1px 0 0 rgb(var(--color-border-subtle));
+  }
+  .hairline-t {
+    box-shadow: inset 0 1px 0 0 rgb(var(--color-border-subtle));
+  }
+
+  .email-preview-html {
+    word-break: break-word;
+  }
+  .email-preview-html a {
+    color: rgb(var(--color-accent));
+    text-decoration: underline;
+  }
+  .email-preview-html img {
+    max-width: 100%;
+    height: auto;
+  }
+  .email-preview-html blockquote {
+    border-left: 2px solid rgb(var(--color-border-strong));
+    padding-left: 0.75rem;
+    margin: 0.5rem 0;
+    color: rgb(var(--color-fg-muted));
+  }
+}
