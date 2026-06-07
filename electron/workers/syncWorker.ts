@@ -254,10 +254,8 @@ async function runPipeline(fetcher: ProviderFetcher) {
 
 // ─── Stage 2 ──────────────────────────────────────────────────────────
 async function stage2Fetch(fetcher: ProviderFetcher, incrementalAfter: number) {
-  // For Microsoft: stream IDs in pages of 200; persist nextLink as cursor.
-  // For Gmail:    stream IDs in pages of 500; persist pageToken as cursor.
-  // After each ID page, fan out batch metadata fetches with a 3-way pool.
-  const pool = new ConcurrencyPool(3);
+  const concurrency = data.provider === 'google' ? 8 : 6;
+  const pool = new ConcurrencyPool(concurrency);
   const idStream = fetcher.streamMessageIds(
     {
       range: data.range,
@@ -270,53 +268,63 @@ async function stage2Fetch(fetcher: ProviderFetcher, incrementalAfter: number) {
   const max = data.maxMessages ?? 50_000;
   let totalIdsSeen = 0;
   let lastEmittedAt = 0;
+  let pageIndex = 0;
+  let rateLimitedRecently = false;
 
   for await (const page of idStream) {
     if (cancelled) return;
+    pageIndex += 1;
     if (page.ids.length === 0) {
-      db.setCursor(data.accountId, page.nextCursor, stats.emailsFetched, 2);
+      if (pageIndex % 3 === 0) {
+        db.setCursor(data.accountId, page.nextCursor, stats.emailsFetched, 2);
+      }
       continue;
     }
 
-    // Slice into provider-specific batch sizes. Gmail = 100, Graph = 20.
     const batchSize = data.provider === 'google' ? 100 : 20;
     const subBatches: string[][] = [];
     for (let i = 0; i < page.ids.length; i += batchSize) {
       subBatches.push(page.ids.slice(i, i + batchSize));
     }
 
-    // Run each sub-batch through the pool (max 3 concurrent batch HTTP calls).
     const tasks = subBatches.map((chunk) =>
-      pool.run(async () => {
-        if (cancelled) return;
-        let rows: Array<MetadataRow | null> = [];
+      pool.run(async (): Promise<{ rows: SyncEmailRow[]; bytes: number }> => {
+        if (cancelled) return { rows: [], bytes: 0 };
+        let metaRows: Array<MetadataRow | null> = [];
         try {
-          rows = await fetcher.batchGetMetadata(chunk, abort.signal);
+          metaRows = await fetcher.batchGetMetadata(chunk, abort.signal);
         } catch (e) {
-          // If the entire batch fails non-recoverably, fall through with all-nulls.
           log('warn', `Batch fetch failed: ${(e as Error).message}`);
+          rateLimitedRecently = true;
         }
 
-        // Per-item fallback for sub-request failures (Graph 429s on individual
-        // sub-requests don't fail the outer call). For Gmail we just accept
-        // the loss — it's rare and the next sync will pick them up.
         if (data.provider === 'microsoft') {
-          for (let i = 0; i < rows.length; i += 1) {
-            if (rows[i] === null && chunk[i]) {
-              const r = await (fetcher as GraphFetcher).getMetadataOne(
-                chunk[i],
+          const missing: string[] = [];
+          for (let i = 0; i < metaRows.length; i += 1) {
+            if (metaRows[i] === null && chunk[i]) missing.push(chunk[i]);
+          }
+          for (let i = 0; i < missing.length; i += 20) {
+            const retryChunk = missing.slice(i, i + 20);
+            try {
+              const retried = await (fetcher as GraphFetcher).batchGetMetadata(
+                retryChunk,
                 abort.signal
               );
-              rows[i] = r;
+              for (let j = 0; j < retried.length; j += 1) {
+                const id = retryChunk[j];
+                const idx = chunk.indexOf(id);
+                if (idx >= 0 && retried[j]) metaRows[idx] = retried[j];
+              }
+            } catch {
+              rateLimitedRecently = true;
             }
           }
         }
 
         const emailRows: SyncEmailRow[] = [];
         let chunkBytes = 0;
-        for (const r of rows) {
-          if (!r) continue;
-          if (!r.fromEmail) continue;
+        for (const r of metaRows) {
+          if (!r?.fromEmail) continue;
           emailRows.push({
             id: r.id,
             accountId: data.accountId,
@@ -334,38 +342,46 @@ async function stage2Fetch(fetcher: ProviderFetcher, incrementalAfter: number) {
           });
           chunkBytes += r.sizeBytes || 0;
         }
-        const written = db.insertEmails(emailRows);
-        stats.emailsFetched += written;
-        // Only accumulate bytes for rows we actually inserted, otherwise
-        // resumed syncs double-count IDs already present in the DB.
-        if (emailRows.length > 0) {
-          const ratio = written / emailRows.length;
-          stats.storageMapped += Math.round(chunkBytes * ratio);
-        }
-
-        // Throttled progress (UI rendering cap ~ 2 Hz).
-        const now = Date.now();
-        if (now - lastEmittedAt > 500 || stats.emailsFetched % 2000 === 0) {
-          lastEmittedAt = now;
-          const pct =
-            totalEstimate > 0
-              ? Math.min(0.99, stats.emailsFetched / totalEstimate)
-              : Math.min(0.99, stats.emailsFetched / Math.max(1, max));
-          reportStage(
-            2,
-            pct,
-            `Fetched ${stats.emailsFetched.toLocaleString()} of ~${totalEstimate.toLocaleString()} emails`
-          );
-        }
+        return { rows: emailRows, bytes: chunkBytes };
       })
     );
 
-    await Promise.all(tasks);
-    // Pace between ID pages — gives the server breathing room and helps us
-    // stay under provider quotas (Google: 250 units/s, Graph: 10k/10min).
-    await sleep(100, abort.signal);
+    const batchResults = await Promise.all(tasks);
+    const allRows = batchResults.flatMap((r) => r.rows);
+    if (allRows.length > 0) {
+      const written = db.insertEmails(allRows);
+      stats.emailsFetched += written;
+      const totalBytes = batchResults.reduce((s, r) => s + r.bytes, 0);
+      if (totalBytes > 0) {
+        const ratio = written / allRows.length;
+        stats.storageMapped += Math.round(totalBytes * ratio);
+      }
+    }
 
-    db.setCursor(data.accountId, page.nextCursor, stats.emailsFetched, 2);
+    const now = Date.now();
+    if (now - lastEmittedAt > 500 || stats.emailsFetched % 2000 === 0) {
+      lastEmittedAt = now;
+      const pct =
+        totalEstimate > 0
+          ? Math.min(0.99, stats.emailsFetched / totalEstimate)
+          : Math.min(0.99, stats.emailsFetched / Math.max(1, max));
+      reportStage(
+        2,
+        pct,
+        `Fetched ${stats.emailsFetched.toLocaleString()} of ~${totalEstimate.toLocaleString()} emails`
+      );
+    }
+
+    if (rateLimitedRecently) {
+      await sleep(150, abort.signal);
+      rateLimitedRecently = false;
+    } else if (pageIndex % 4 === 0) {
+      await sleep(25, abort.signal);
+    }
+
+    if (pageIndex % 3 === 0 || !page.nextCursor) {
+      db.setCursor(data.accountId, page.nextCursor, stats.emailsFetched, 2);
+    }
     totalIdsSeen += page.ids.length;
     if (totalIdsSeen >= max) break;
     if (cancelled) return;

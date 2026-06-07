@@ -39,6 +39,7 @@ import {
 } from './syncDb.js';
 import { runIntelligence } from './intelligenceEngine.js';
 import { broadcast } from './broadcast.js';
+import { invalidateDashboardSnapshot } from './dashboardData.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -320,12 +321,10 @@ function handleWorkerMessage(entry: ActiveSync, msg: WorkerMessage) {
       entry.stats.newslettersDetected = msg.summary.newsletters;
       entry.stats.suggestionsBuilt = msg.summary.suggestions;
 
-      // Backwards-compat: read the freshly-written rows out of SQLite and
-      // emit them on the legacy `result` payload so existing UI consumers
-      // (InboxCleaner, Dashboard, MovePicker, Rules) keep working without
-      // modification. Phase 2 will move these consumers to query the DB
-      // directly via dedicated IPC endpoints.
-      const { messages, suggestions } = readResultsForLegacyUi(entry.accountId);
+      // Lightweight completion payload — sender groups from SQLite, not 50k raw emails.
+      const { messages, suggestions, senderGroups } = readResultsForLegacyUi(entry.accountId);
+      invalidateDashboardSnapshot(entry.accountId);
+      invalidateDashboardSnapshot('all');
 
       emitProgress({
         syncId: entry.syncId,
@@ -337,7 +336,7 @@ function handleWorkerMessage(entry: ActiveSync, msg: WorkerMessage) {
           `Sync complete · ${msg.summary.totalEmails.toLocaleString()} emails, ${msg.summary.totalSenders.toLocaleString()} senders in ${formatDuration(msg.summary.durationMs)}`
         ),
         done: true,
-        result: { messages, suggestions },
+        result: { messages, suggestions, senderGroups },
       });
       cleanup(entry);
       // Kick off the post-sync intelligence pass. It runs in its own worker
@@ -454,28 +453,27 @@ function formatDuration(ms: number): string {
 function readResultsForLegacyUi(accountId: string): {
   messages: EmailMessage[];
   suggestions: FolderSuggestion[];
+  senderGroups: import('../../shared/types.js').SenderGroup[];
 } {
   const db = openSyncDb(accountId);
   try {
-    const rawEmails = db.getEmailsForUi(accountId, 50_000);
-    const messages: EmailMessage[] = rawEmails.map((r) => ({
-      id: r.id,
-      fromEmail: r.fromEmail,
-      fromName: r.fromName,
-      subject: r.subject,
-      snippet: '',
-      receivedAt: r.receivedAt,
-      sizeBytes: r.sizeBytes,
-      isUnread: r.isUnread,
-      hasListUnsubscribe: r.hasListUnsubscribe,
-      folder: r.folder,
+    const sgRows = db.listSenderGroups(accountId);
+    const senderGroups: import('../../shared/types.js').SenderGroup[] = sgRows.map((r) => ({
+      email: r.id,
+      name: r.senderName || r.id,
+      domain: (r.id.split('@')[1] ?? '').toLowerCase(),
+      count: r.emailCount,
+      totalBytes: r.totalSizeBytes,
+      oldestAt: r.firstSeen ?? 0,
+      newestAt: r.lastSeen ?? 0,
+      unreadCount: r.unreadCount,
+      hasListUnsubscribe: r.hasListUnsubscribeHeader === 1,
+      isNewsletter: r.isNewsletter === 1,
+      category: (r.category as import('../../shared/types.js').SenderCategory) ?? undefined,
+      sampleSubjects: safeJsonArray(r.sampleSubjects) as string[],
+      messageIds: [],
     }));
 
-    const sgRows = db.listSenderGroups(accountId);
-    const sgById = new Map<string, SyncSenderGroupRow>();
-    for (const r of sgRows) sgById.set(r.id, r);
-
-    // Build suggestions. The DB stores the senderEmails JSON shape we need.
     const suggestions: FolderSuggestion[] = db
       .listFolderSuggestions(accountId)
       .map((row) => ({
@@ -492,7 +490,7 @@ function readResultsForLegacyUi(accountId: string): {
         totalCount: row.emailCount,
         action: 'create_and_move',
       }));
-    return { messages, suggestions };
+    return { messages: [], suggestions, senderGroups };
   } finally {
     db.close();
   }

@@ -236,7 +236,7 @@ export class GraphClient {
     ]);
 
     let url: string | undefined =
-      '/me/mailFolders?$top=200&includeHiddenFolders=true&$select=id,displayName,totalItemCount,parentFolderId';
+      '/me/mailFolders?$top=500&includeHiddenFolders=true&$select=id,displayName,totalItemCount,parentFolderId';
 
     while (url) {
       const resp: {
@@ -295,16 +295,17 @@ export class GraphClient {
       }
     }
 
-    // Walk every folder and fetch nested child folders (e.g. subfolders under Inbox).
+    // Walk nested child folders — fetch children for multiple parents concurrently.
     const visited = new Set<string>();
     const queue = [...byId.keys()];
-    while (queue.length) {
-      const folderId = queue.shift()!;
-      if (visited.has(folderId)) continue;
+    const CHILD_CONCURRENCY = 6;
+
+    const fetchChildren = async (folderId: string) => {
+      if (visited.has(folderId)) return;
       visited.add(folderId);
 
       let childUrl: string | undefined =
-        `/me/mailFolders/${encodeURIComponent(folderId)}/childFolders?$top=200&includeHiddenFolders=true&$select=id,displayName,totalItemCount,parentFolderId,childFolderCount`;
+        `/me/mailFolders/${encodeURIComponent(folderId)}/childFolders?$top=500&includeHiddenFolders=true&$select=id,displayName,totalItemCount,parentFolderId,childFolderCount`;
 
       while (childUrl) {
         const childResp: {
@@ -335,6 +336,11 @@ export class GraphClient {
         const nextChild = childResp.data['@odata.nextLink'];
         childUrl = nextChild ? nextChild.replace(GRAPH, '') : undefined;
       }
+    };
+
+    while (queue.length) {
+      const batch = queue.splice(0, CHILD_CONCURRENCY);
+      await Promise.all(batch.map((id) => fetchChildren(id)));
     }
 
     return Array.from(byId.values());

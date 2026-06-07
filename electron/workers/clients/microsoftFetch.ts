@@ -144,7 +144,7 @@ export class GraphFetcher {
 
     let url: string | undefined =
       initialCursor ??
-      `${folder}?$top=200&$select=id&$orderby=receivedDateTime desc${
+      `${folder}?$top=500&$select=id&$orderby=receivedDateTime desc${
         filter.length ? `&$filter=${encodeURIComponent(filter.join(' and '))}` : ''
       }`;
 
