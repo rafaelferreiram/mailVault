@@ -800,6 +800,7 @@ export interface LiveSyncAutoActionPrefs {
 export interface LiveSyncNotificationPrefs {
   showNewEmailBadge: boolean;
   ringBellOnApprovals: boolean;
+  notifyOnSyncComplete: boolean;
   autoShowModalOnFocus: boolean;
   autoShowModalDelay: number;
   silentAfterHours: string | null;
@@ -852,6 +853,7 @@ export type NotificationType =
   | 'JUNK_RESCUE'
   | 'RULE_SUGGESTION'
   | 'SYNC_STARTED'
+  | 'SYNC_COMPLETE'
   | 'SYNC_ERROR'
   | 'AUTH_REQUIRED';
 
@@ -958,6 +960,7 @@ export const DEFAULT_LIVE_SYNC: LiveSyncPrefs = {
   notifications: {
     showNewEmailBadge: true,
     ringBellOnApprovals: true,
+    notifyOnSyncComplete: true,
     autoShowModalOnFocus: true,
     autoShowModalDelay: 2000,
     silentAfterHours: null,

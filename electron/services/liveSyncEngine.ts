@@ -499,6 +499,10 @@ export function checkNowAll() {
   for (const id of loops.keys()) void pollAccount(id, true);
 }
 
+export function isWindowFocused(): boolean {
+  return windowFocused;
+}
+
 export function onWindowFocus(focused: boolean) {
   windowFocused = focused;
   if (focused && globalEnabled && livePrefs().enabled) {

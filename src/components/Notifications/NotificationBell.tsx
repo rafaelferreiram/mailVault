@@ -77,7 +77,7 @@ function filterTab(tab: Tab, n: NotificationRecord): boolean {
     case 'actions':
       return n.type === 'AUTO_ACTION_APPLIED';
     case 'sync':
-      return ['SYNC_STARTED', 'SYNC_ERROR'].includes(n.type);
+      return ['SYNC_STARTED', 'SYNC_COMPLETE', 'SYNC_ERROR'].includes(n.type);
     default:
       return true;
   }
@@ -136,6 +136,7 @@ export function NotificationBell() {
 
   const onRowClick = (n: NotificationRecord) => {
     if (n.actionUrl === 'senders') setRoute('senders');
+    if (n.actionUrl === 'dashboard') setRoute('dashboard');
     if (n.actionUrl === 'reauth') void reauth(n.accountId);
     if (n.actionUrl === 'approval' && n.pendingId) setApprovalOpen(true, n.pendingId);
     if (n.type === 'APPROVAL_NEEDED' || n.type === 'JUNK_RESCUE') {

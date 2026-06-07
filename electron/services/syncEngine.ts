@@ -40,6 +40,7 @@ import {
 import { runIntelligence } from './intelligenceEngine.js';
 import { broadcast } from './broadcast.js';
 import { invalidateDashboardSnapshot } from './dashboardData.js';
+import { notifySyncComplete, notifySyncFailed } from './syncNotifications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -338,6 +339,12 @@ function handleWorkerMessage(entry: ActiveSync, msg: WorkerMessage) {
         done: true,
         result: { messages, suggestions, senderGroups },
       });
+      notifySyncComplete(entry.accountId, {
+        totalEmails: msg.summary.totalEmails,
+        totalSenders: msg.summary.totalSenders,
+        totalStorage: msg.summary.totalStorage,
+        durationMs: msg.summary.durationMs,
+      });
       cleanup(entry);
       // Kick off the post-sync intelligence pass. It runs in its own worker
       // and emits its own progress events; the renderer subscribes to
@@ -382,6 +389,9 @@ function handleWorkerMessage(entry: ActiveSync, msg: WorkerMessage) {
             : `Sync failed (${msg.error.code}): ${msg.error.message}`
         ),
       });
+      if (!isCancel) {
+        notifySyncFailed(entry.accountId, msg.error.message);
+      }
       cleanup(entry);
       break;
     }

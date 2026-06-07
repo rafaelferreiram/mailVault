@@ -173,6 +173,11 @@ export function LiveSyncControl({ variant = 'card', showFolderNote = true }: Liv
             onChange={(v) => setNotif('ringBellOnApprovals', v)}
           />
           <IosToggle
+            label="Notify when sync completes"
+            checked={livePrefs.notifications.notifyOnSyncComplete}
+            onChange={(v) => setNotif('notifyOnSyncComplete', v)}
+          />
+          <IosToggle
             label="Show approval popup on focus"
             checked={livePrefs.notifications.autoShowModalOnFocus}
             onChange={(v) => setNotif('autoShowModalOnFocus', v)}

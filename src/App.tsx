@@ -35,6 +35,7 @@ import { NotificationBell } from './components/Notifications/NotificationBell';
 import { LiveStatusIndicator } from './components/Notifications/LiveStatusIndicator';
 import { NotificationCenter } from './components/Notifications';
 import { useLiveSyncSubscriptions } from './hooks/useLiveSync';
+import { useSyncNotifications } from './hooks/useSyncNotifications';
 import { useLiveSyncStore } from './stores/liveSyncStore';
 import clsx from 'clsx';
 
@@ -67,6 +68,7 @@ export default function App() {
   const bootstrapLiveSync = useLiveSyncStore((s) => s.bootstrap);
 
   useLiveSyncSubscriptions();
+  useSyncNotifications();
 
   const [oauthStatus, setOauthStatus] = useState<OAuthConfigStatus | null>(null);
   const refreshOauthStatus = useCallback(async () => {
