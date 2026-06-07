@@ -123,6 +123,8 @@ const config: Config = {
         'dropdown-in': 'dropdownIn 160ms ease-out',
         'modal-in': 'modalIn 180ms ease-out',
         'spin-slow': 'spin 1.2s linear infinite',
+        'slide-up-in': 'slideUpIn 280ms ease-out both',
+        'sync-pulse': 'syncPulse 2s ease-in-out infinite',
       },
       keyframes: {
         logIn: {
@@ -168,6 +170,18 @@ const config: Config = {
         modalIn: {
           '0%': { transform: 'scale(0.95)', opacity: '0' },
           '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        slideUpIn: {
+          '0%': { transform: 'translateY(8px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        syncPulse: {
+          '0%, 100%': { opacity: '0.45' },
+          '50%': { opacity: '1' },
+        },
+        staggerIn: {
+          '0%': { transform: 'translateY(6px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },
     },

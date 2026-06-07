@@ -62,7 +62,7 @@ export function SenderRow({
         selected ? 'bg-accent/[0.06] outline outline-1 outline-accent/40' : 'hover:bg-bg-hover'
       )}
     >
-      <div className="grid grid-cols-12 px-3 grid-row items-center gap-2 group">
+      <div className="grid grid-cols-12 px-3 grid-row items-center gap-2 group data-grid-row">
         <div className="col-span-1">
           <Checkbox checked={selected} onChange={onToggleSelect} size="sm" />
         </div>
@@ -126,7 +126,7 @@ export function SenderRow({
       </div>
 
       {expanded && (
-        <div className="border-t border-border-subtle bg-bg-inset px-12 py-2 animate-fade-in">
+        <div className="sender-inline-detail border-t border-border-subtle bg-bg-inset px-4 sm:px-12 py-2 animate-fade-in">
           <div className="label-mono mb-2">
             Recent subjects · showing {Math.min(messages.length, 25)} of {messages.length}
           </div>

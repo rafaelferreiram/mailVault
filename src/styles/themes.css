@@ -370,24 +370,44 @@ html[data-layout='compact-list'] .panel {
   padding: calc(var(--card-pad) * 0.75);
 }
 
-html[data-layout='master-detail'] .route-senders,
-html[data-layout='master-detail'] .route-analyze {
-  display: grid;
-  grid-template-columns: minmax(280px, 38%) 1fr;
+/* Master-detail: opt in on the Senders workspace (not the route wrapper — a single
+   child on <main> would otherwise occupy only the first grid column). */
+.senders-detail-pane {
+  display: none;
 }
-html[data-layout='master-detail'] .route-senders > *:last-child,
-html[data-layout='master-detail'] .route-analyze > *:last-child {
+
+html[data-layout='master-detail'] .senders-panes {
+  display: grid;
+  grid-template-columns: minmax(280px, 38%) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+html[data-layout='master-detail'] .senders-detail-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
   border-left: 1px solid rgb(var(--color-border));
+}
+html[data-layout='master-detail'] .sender-inline-detail {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  html[data-layout='master-detail'] .senders-panes {
+    display: flex;
+    flex-direction: column;
+  }
+  html[data-layout='master-detail'] .senders-detail-pane {
+    border-left: none;
+    border-top: 1px solid rgb(var(--color-border));
+    max-height: 45vh;
+  }
 }
 
 html[data-layout='dashboard-first'] .route-dashboard .dashboard-stats {
   order: -1;
-}
-
-html[data-layout='three-column'] .route-mailbox,
-html[data-layout='three-column'] .route-senders {
-  display: grid;
-  grid-template-columns: minmax(160px, 200px) minmax(280px, 32%) 1fr;
 }
 
 /* Layout template change: fade main content, snap panels, fade in */

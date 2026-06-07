@@ -85,7 +85,7 @@ export function Blocked() {
         }
       />
 
-      <div className="p-6 space-y-4">
+      <div className="page-content space-y-4">
         {loading && list.length === 0 ? (
           <div className="space-y-px">
             <Skeleton className="h-9" />

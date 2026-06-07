@@ -68,6 +68,15 @@ export function InboxCleaner() {
   const groups = useMemo(() => groupBySender(filteredMessages), [filteredMessages]);
   const sortedGroups = useMemo(() => sortGroups(groups, sortKey), [groups, sortKey]);
 
+  const expandedGroup = useMemo(
+    () => (expanded ? sortedGroups.find((g) => g.email === expanded) : undefined),
+    [expanded, sortedGroups]
+  );
+  const expandedMessages = useMemo(() => {
+    if (!expanded) return [];
+    return filteredMessages.filter((m) => m.fromEmail === expanded);
+  }, [expanded, filteredMessages]);
+
   const totalSelectedMessages = useMemo(() => {
     let n = 0;
     for (const g of groups) if (selected.has(g.email)) n += g.count;
@@ -168,8 +177,10 @@ export function InboxCleaner() {
         }
       />
 
+      <div className="senders-panes flex-1 flex flex-col min-h-0 min-w-0">
+        <div className="senders-list-pane flex-1 flex flex-col min-h-0 min-w-0">
       {/* Toolbar */}
-      <div className="px-6 py-2 border-b border-border-subtle flex items-center gap-2 flex-wrap">
+      <div className="page-content py-2 border-b border-border-subtle flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[260px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-fg-subtle" />
           <input
@@ -223,8 +234,8 @@ export function InboxCleaner() {
       </div>
 
       {/* Header row */}
-      <div className="px-6 pt-2">
-        <div className="grid grid-cols-12 px-3 h-7 panel-inset items-center gap-2 label-mono">
+      <div className="page-content pt-2">
+        <div className="data-grid-header grid grid-cols-12 px-3 h-7 panel-inset items-center gap-2 label-mono">
           <div className="col-span-1">
             <Checkbox
               checked={allSelected ? true : someSelected ? 'indeterminate' : false}
@@ -241,7 +252,7 @@ export function InboxCleaner() {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-1">
+      <div className="flex-1 overflow-y-auto page-content pb-6 pt-1">
         {sync?.active && !messages.length ? (
           <SkeletonRows rows={10} />
         ) : sortedGroups.length === 0 ? (
@@ -264,6 +275,56 @@ export function InboxCleaner() {
             ))}
           </div>
         )}
+      </div>
+        </div>
+
+        <div className="senders-detail-pane">
+          {expandedGroup ? (
+            <div className="flex flex-col min-h-0 h-full">
+              <div className="px-4 py-3 border-b border-border-subtle shrink-0">
+                <div className="font-mono text-[10px] uppercase tracking-widest text-fg-subtle">
+                  Sender detail
+                </div>
+                <div className="text-[13px] font-medium mt-1 truncate">{expandedGroup.name}</div>
+                <div className="text-[10px] font-mono text-fg-muted truncate">{expandedGroup.email}</div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
+                <div className="label-mono mb-2">
+                  Recent subjects · showing {Math.min(expandedMessages.length, 25)} of{' '}
+                  {expandedMessages.length}
+                </div>
+                <div className="space-y-0.5">
+                  {expandedMessages
+                    .slice()
+                    .sort((a, b) => b.receivedAt - a.receivedAt)
+                    .slice(0, 25)
+                    .map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-[10px] font-mono text-fg-muted py-1 hover:text-fg border-b border-border-subtle/50 last:border-0"
+                      >
+                        <span className="text-fg-subtle shrink-0">
+                          {new Date(m.receivedAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: '2-digit',
+                            year: '2-digit',
+                          })}
+                        </span>
+                        <span className={`flex-1 truncate ${m.isUnread ? 'text-fg' : ''}`}>
+                          {m.subject}
+                        </span>
+                        <span className="text-fg-subtle shrink-0">{formatBytes(m.sizeBytes)}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-6 text-center text-fg-subtle font-mono text-[10px] uppercase tracking-widest">
+              Select a sender to inspect messages
+            </div>
+          )}
+        </div>
       </div>
 
       <DeleteConfirmModal />

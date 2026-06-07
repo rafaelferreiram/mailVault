@@ -1,13 +1,14 @@
 import { useEffect, useMemo } from 'react';
 import clsx from 'clsx';
-import { Inbox, Mail, RefreshCw, Loader2 } from 'lucide-react';
+import { Inbox, Mail, RefreshCw, Loader2, ChevronLeft } from 'lucide-react';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useFoldersStore } from '@/stores/foldersStore';
 import { useMailboxStore } from '@/stores/mailboxStore';
 import { FolderTree, FolderBreadcrumb } from '@/components/FolderTree';
 import { PageHeader } from '../PageHeader';
 import { Button } from '../ui/Button';
-import { Skeleton } from '../ui/Skeleton';
+import { Skeleton, SkeletonRows } from '../ui/Skeleton';
+import { LoadingIndicator, LoadingBar } from '../ui/LoadingIndicator';
 import { formatNumber } from '@/lib/format';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -45,6 +46,7 @@ export function Mailbox() {
   const previewLoading = useMailboxStore((s) => s.previewLoading);
   const loadFolder = useMailboxStore((s) => s.loadFolder);
   const selectMessage = useMailboxStore((s) => s.selectMessage);
+  const clearPreview = useMailboxStore((s) => s.clearPreview);
   const openFolder = useMailboxStore((s) => s.openFolder);
 
   useEffect(() => {
@@ -108,9 +110,9 @@ export function Mailbox() {
         }
       />
 
-      <div className="flex-1 flex min-h-0 border-t border-border">
+      <div className="flex-1 flex flex-col xl:flex-row min-h-0 border-t border-border">
         {/* Folder tree — full mailbox hierarchy */}
-        <div className="w-[220px] shrink-0 flex flex-col min-h-0 border-r border-border bg-bg-elevated">
+        <div className="hidden xl:flex w-[220px] shrink-0 flex-col min-h-0 border-r border-border bg-bg-elevated">
           <div className="px-3 h-8 border-b border-border-subtle flex items-center justify-between shrink-0">
             <span className="label-mono text-[10px]">Folder tree</span>
             <button
@@ -135,15 +137,20 @@ export function Mailbox() {
         </div>
 
         {/* Message list */}
-        <div className="w-[min(340px,32%)] shrink-0 flex flex-col min-h-0 border-r border-border bg-bg">
+        <div
+          className={clsx(
+            'shrink-0 flex flex-col min-h-0 border-r border-border bg-bg w-full xl:w-[min(340px,32%)]',
+            selectedId ? 'hidden md:flex' : 'flex'
+          )}
+        >
           <div className="px-3 h-8 border-b border-border-subtle flex items-center shrink-0">
             <span className="label-mono text-[10px]">Messages</span>
           </div>
+          <LoadingBar active={loading && messages.length > 0} />
           {loading && !messages.length ? (
-            <div className="p-3 space-y-2">
-              <Skeleton className="h-14" />
-              <Skeleton className="h-14" />
-              <Skeleton className="h-14" />
+            <div className="flex-1 flex flex-col min-h-0">
+              <LoadingIndicator label="Loading messages" className="py-6" />
+              <SkeletonRows rows={5} />
             </div>
           ) : error ? (
             <div className="p-4 text-[12px] text-danger">{error}</div>
@@ -157,7 +164,7 @@ export function Mailbox() {
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto">
-              {messages.map((m) => {
+              {messages.map((m, i) => {
                 const active = m.id === selectedId;
                 return (
                   <button
@@ -165,12 +172,13 @@ export function Mailbox() {
                     type="button"
                     onClick={() => activeId && void selectMessage(activeId, m.id)}
                     className={clsx(
-                      'w-full text-left px-3 py-2.5 border-b border-border-subtle transition-colors',
+                      'mail-row-enter w-full text-left px-3 py-2.5 border-b border-border-subtle transition-colors',
                       active
                         ? 'bg-accent/10 border-l-2 border-l-accent'
                         : 'hover:bg-bg-hover border-l-2 border-l-transparent',
                       m.isUnread && !active && 'bg-bg-elevated/50'
                     )}
+                    style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
                   >
                     <div className="flex items-baseline justify-between gap-2 mb-0.5">
                       <span
@@ -204,8 +212,23 @@ export function Mailbox() {
         </div>
 
         {/* Reading pane */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-bg">
-          <div className="px-3 h-8 border-b border-border-subtle flex items-center shrink-0">
+        <div
+          className={clsx(
+            'flex-1 flex flex-col min-w-0 min-h-0 bg-bg',
+            selectedId ? 'flex' : 'hidden md:flex'
+          )}
+        >
+          <div className="px-3 h-8 border-b border-border-subtle flex items-center gap-2 shrink-0">
+            {selectedId && (
+              <button
+                type="button"
+                className="md:hidden p-1 -ml-1 text-fg-subtle hover:text-fg"
+                onClick={() => clearPreview()}
+                aria-label="Back to message list"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
             <span className="label-mono text-[10px]">Preview</span>
           </div>
           {!selectedId ? (
@@ -213,10 +236,7 @@ export function Mailbox() {
               Select a message
             </div>
           ) : previewLoading ? (
-            <div className="flex-1 flex items-center justify-center gap-2 text-fg-muted">
-              <Loader2 className="w-4 h-4 animate-spin text-accent" />
-              <span className="text-[12px]">Loading preview…</span>
-            </div>
+            <LoadingIndicator label="Loading preview" variant="dots" className="flex-1 preview-loading" />
           ) : preview ? (
             <>
               <div className="px-5 py-4 border-b border-border-subtle shrink-0">

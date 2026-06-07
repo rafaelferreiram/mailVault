@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, LogOut, Keyboard, Rows3, AlertTriangle, User as UserIcon } from 'lucide-react';
+import { Plus, LogOut, Keyboard, Rows3, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useUserStore } from '@/stores/userStore';
 import { useUIStore } from '@/stores/uiStore';
 import { GoogleIcon, OutlookIcon } from './ui/ProviderIcon';
 import { Avatar } from './ui/Avatar';
+import { UserAvatar } from './ui/UserAvatar';
 import { BrandLockupHorizontal } from './Brand';
 import { ConfirmModal } from './ui/ConfirmModal';
 import { NotificationBell } from './Notifications/NotificationBell';
@@ -21,6 +22,7 @@ export function TopBar() {
   const reauth = useAccountsStore((s) => s.reauth);
   const loginInProgress = useAccountsStore((s) => s.loginInProgress);
   const setShortcutsOpen = useUIStore((s) => s.setShortcutsOpen);
+  const setRoute = useUIStore((s) => s.setRoute);
   const compact = useUIStore((s) => s.compact);
   const toggleCompact = useUIStore((s) => s.toggleCompact);
   const showToast = useUIStore((s) => s.showToast);
@@ -48,12 +50,15 @@ export function TopBar() {
       {/* Brand — `mac-titlebar-pad` reserves room for the macOS traffic
           lights (close / minimize / maximize) that hiddenInset paints
           over our content. No-op on Linux/Windows. */}
-      <div
-        className="flex items-center px-4 h-full no-drag border-r border-border-subtle text-fg mac-titlebar-pad"
-        title="MailVault"
+      <button
+        type="button"
+        onClick={() => setRoute('dashboard')}
+        className="flex items-center px-4 h-full no-drag border-r border-border-subtle text-fg mac-titlebar-pad hover:bg-bg-hover transition-colors cursor-pointer"
+        title="Go to Dashboard"
+        aria-label="Go to Dashboard"
       >
         <BrandLockupHorizontal className="h-[18px] w-auto" />
-      </div>
+      </button>
 
       {/* Account tabs — hideable via Personalization → Panels */}
       {showAccountTabs ? (
@@ -214,14 +219,14 @@ export function TopBar() {
           <Icon icon={Keyboard} size="sm" />
         </button>
         {me && (
-          <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-border-subtle">
-            <Icon icon={UserIcon} size="xs" className="text-fg-subtle" />
-            <span className="text-[10px] font-mono text-fg-muted uppercase tracking-widest">
-              @{me.username}
+          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border-subtle max-w-[180px]">
+            <UserAvatar user={me} size={22} />
+            <span className="text-[11px] text-fg truncate" title={me.email}>
+              {me.displayName}
             </span>
             <button
               onClick={() => setSigningOut(true)}
-              className="inline-flex items-center text-fg-subtle hover:text-danger ml-1"
+              className="inline-flex items-center text-fg-subtle hover:text-danger shrink-0"
               title="Sign out of MailVault"
             >
               <Icon icon={LogOut} size="xs" />

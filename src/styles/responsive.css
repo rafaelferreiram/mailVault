@@ -1,0 +1,131 @@
+/* Shared responsive layout utilities for MailVault pages */
+
+.page-header {
+  padding-left: clamp(16px, 3vw, 24px);
+  padding-right: clamp(16px, 3vw, 24px);
+}
+
+.page-header__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.page-content {
+  padding: clamp(16px, 3vw, 24px);
+}
+
+.page-content--narrow {
+  max-width: 1240px;
+}
+
+/* Settings: stack nav above content on narrow viewports */
+.settings-shell {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.settings-nav {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid rgb(var(--color-border));
+  background: rgb(var(--color-bg-elevated));
+  padding: 8px;
+  overflow-y: auto;
+}
+
+@media (max-width: 767px) {
+  .settings-shell {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgb(var(--color-border));
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    padding: 8px 12px;
+  }
+
+  .settings-nav__item {
+    flex-shrink: 0;
+    width: auto !important;
+    border-left: none !important;
+    border-bottom: 2px solid transparent;
+    padding-inline: 12px !important;
+  }
+
+  .settings-nav__item--active {
+    border-bottom-color: rgb(var(--color-accent)) !important;
+  }
+}
+
+/* Horizontal scroll regions for dense toolbars / timelines */
+.scroll-row {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.scroll-row__inner {
+  display: flex;
+  min-width: min-content;
+}
+
+/* Rules list: card layout on small screens */
+@media (max-width: 767px) {
+  .rules-table-header {
+    display: none;
+  }
+
+  .rules-table-row {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  .rules-table-row > * {
+    grid-column: auto !important;
+    width: 100%;
+  }
+
+  .rules-table-row__actions {
+    justify-content: flex-start !important;
+  }
+}
+
+/* Folders / senders data grids */
+@media (max-width: 767px) {
+  .data-grid-header,
+  .data-grid-row {
+    grid-template-columns: 1fr auto !important;
+  }
+
+  .data-grid-header > :not(:first-child):not(:last-child),
+  .data-grid-row > :not(:first-child):not(:last-child) {
+    display: none;
+  }
+
+  .data-grid-row > :last-child {
+    grid-column: 2;
+  }
+}
