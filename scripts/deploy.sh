@@ -28,7 +28,7 @@ C_YELLOW=$'\033[33m'
 C_RED=$'\033[31m'
 C_WHITE=$'\033[97m'
 
-TOTAL_STEPS=13
+TOTAL_STEPS=14
 
 step()    { echo -e "\n${C_BOLD}${C_CYAN}[${1}/${TOTAL_STEPS}]${C_RESET} ${C_WHITE}${2}${C_RESET}"; }
 ok()      { echo -e "    ${C_GREEN}✓${C_RESET} ${1}"; }
@@ -139,9 +139,19 @@ else
   fail "TypeScript errors found ($ERROR_COUNT lines). Fix before deploying. Run: npx tsc --noEmit"
 fi
 
-# ── STEP 5: Lint ──────────────────────────────────────────────────────────
+# ── STEP 5: Unit + backend tests ──────────────────────────────────────────
 
-step 5 "Lint check"
+step 5 "Running tests"
+
+if npm run test >> "$LOG_FILE" 2>&1 && npm run test:cli >> "$LOG_FILE" 2>&1; then
+  ok "All unit and backend CLI tests passed"
+else
+  fail "Tests failed. Run: npm run test:all"
+fi
+
+# ── STEP 6: Lint ──────────────────────────────────────────────────────────
+
+step 6 "Lint check"
 
 if npx eslint src electron shared --ext .ts,.tsx --max-warnings 50 >> "$LOG_FILE.lint" 2>&1; then
   ok "Lint passed"
@@ -152,7 +162,7 @@ fi
 
 # ── STEP 6: Build renderer ────────────────────────────────────────────────
 
-step 6 "Building React frontend (Vite)"
+step 7 "Building React frontend (Vite)"
 
 VITE_START=$SECONDS
 if npm run build:renderer >> "$LOG_FILE" 2>&1; then
@@ -165,7 +175,7 @@ fi
 
 # ── STEP 7: Verify Electron main ──────────────────────────────────────────
 
-step 7 "Verifying Electron main process"
+step 8 "Verifying Electron main process"
 
 MAIN_START=$SECONDS
 if npm run build:main >> "$LOG_FILE" 2>&1; then
@@ -185,7 +195,7 @@ fi
 
 # ── STEP 8: Convert SVG assets ────────────────────────────────────────────
 
-step 8 "Converting brand assets"
+step 9 "Converting brand assets"
 
 ICON_SVG="assets/brand/app-icon-1024.svg"
 if [ ! -f "$ICON_SVG" ]; then
@@ -223,7 +233,7 @@ fi
 
 # ── STEP 9: Write build info ──────────────────────────────────────────────
 
-step 9 "Stamping build info"
+step 10 "Stamping build info"
 
 node -e "
   const fs = require('fs')
@@ -243,7 +253,7 @@ ok "build-info.json written (v$NEW_VERSION  $GIT_HASH)"
 
 # ── STEP 10: Package .app + .dmg ──────────────────────────────────────────
 
-step 10 "Packaging .app and .dmg (electron-builder)"
+step 11 "Packaging .app and .dmg (electron-builder)"
 
 BUILD_START=$SECONDS
 ARCH=$(uname -m)
@@ -265,7 +275,7 @@ fi
 
 # ── STEP 11: Verify output ────────────────────────────────────────────────
 
-step 11 "Verifying output"
+step 12 "Verifying output"
 
 APP_PATH=""
 for candidate in \
@@ -318,7 +328,7 @@ fi
 
 # ── STEP 12: Install to /Applications ────────────────────────────────────
 
-step 12 "Installing to /Applications"
+step 13 "Installing to /Applications"
 
 if [ -d "/Applications/MailVault.app" ]; then
   info "Existing installation found — replacing..."
@@ -333,7 +343,7 @@ ok "Quarantine flag removed"
 
 # ── STEP 13: Summary ──────────────────────────────────────────────────────
 
-step 13 "Build complete"
+step 14 "Build complete"
 
 TOTAL_TIME=$SECONDS
 MINS=$((TOTAL_TIME / 60))
