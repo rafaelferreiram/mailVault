@@ -1,4 +1,4 @@
-// MailVault Intelligence worker — runs the 8 analyzers in parallel against
+// MailVault Intelligence worker — runs the analyzers in parallel against
 // the SQLite snapshot left by the sync engine, dedupes / scores / groups the
 // raw suggestions, and persists them to the `suggestions` and
 // `suggestion_groups` tables. Pure local computation — no API calls.
@@ -19,6 +19,7 @@ import { RuleSuggestionAnalyzer } from './analyzers/ruleSuggestion.js';
 import { LargeAttachmentAnalyzer } from './analyzers/largeAttachment.js';
 import { InboxClutterAnalyzer } from './analyzers/inboxClutter.js';
 import { SenderTrustAnalyzer } from './analyzers/senderTrust.js';
+import { JobOfferAnalyzer } from './analyzers/jobOffer.js';
 import type {
   IntelligenceSummary,
   Suggestion,
@@ -54,6 +55,7 @@ const ANALYZERS = [
   LargeAttachmentAnalyzer,
   InboxClutterAnalyzer,
   SenderTrustAnalyzer,
+  JobOfferAnalyzer,
 ];
 
 run().catch((err) => {

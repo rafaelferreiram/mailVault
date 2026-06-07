@@ -13,6 +13,7 @@
 
 import { parentPort, workerData } from 'node:worker_threads';
 import { SyncDb, type SyncEmailRow, type SyncSenderGroupRow, type FolderSuggestionRow } from '../services/syncDb.js';
+import { classifySenderCategoryWork, JOB_OFFERS_FOLDER } from '../../shared/jobOfferDetection.js';
 import { GmailFetcher } from './clients/gmailFetch.js';
 import { GraphFetcher } from './clients/microsoftFetch.js';
 import { ConcurrencyPool, sleep } from './backoff.js';
@@ -578,6 +579,35 @@ function stage4Intelligence() {
     });
   }
 
+  const jobSenders = updated.filter((g) => g.category === 'work');
+  if (jobSenders.length >= 1) {
+    const total = jobSenders.reduce((s, g) => s + g.emailCount, 0);
+    if (total >= 2) {
+      fsRows.push({
+        id: `fs-job-offers-${data.accountId}`,
+        accountId: data.accountId,
+        folderName: JOB_OFFERS_FOLDER,
+        category: 'work',
+        reason: `${jobSenders.length} sender${jobSenders.length === 1 ? '' : 's'} with job alerts, recruiter outreach, or interview mail`,
+        senderEmails: JSON.stringify(
+          jobSenders
+            .slice()
+            .sort((a, b) => b.emailCount - a.emailCount)
+            .slice(0, 20)
+            .map((g) => ({
+              email: g.id,
+              name: g.senderName,
+              count: g.emailCount,
+              bytes: g.totalSizeBytes,
+            }))
+        ),
+        emailCount: total,
+        confidence: Math.min(1, total / 15),
+        createdAt: Date.now(),
+      });
+    }
+  }
+
   db.insertFolderSuggestions(fsRows);
   stats.suggestionsBuilt = fsRows.length;
 
@@ -743,12 +773,17 @@ const SUGGESTED_FOLDER_MAP: Record<string, string> = {
   finance: 'Finance',
   shopping: 'Orders & Shipping',
   travel: 'Travel',
+  work: JOB_OFFERS_FOLDER,
 };
 
 function categorize(email: string, subjects: string[]): string {
   const at = email.indexOf('@');
   const domain = at >= 0 ? email.slice(at + 1) : '';
   const subjectBlob = subjects.join(' ').toLowerCase();
+
+  if (classifySenderCategoryWork(email, subjects)) {
+    return 'work';
+  }
 
   if (
     /(github|gitlab|bitbucket|sentry|circleci|pagerduty|datadog|cloudflare|amazonaws)\.[a-z]+$/.test(

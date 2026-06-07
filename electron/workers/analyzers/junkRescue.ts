@@ -14,6 +14,11 @@ import {
   domainOf,
 } from './types.js';
 import type { SyncDb } from '../../services/syncDb.js';
+import {
+  isJobOfferEmail,
+  matchJobDomain,
+  scoreJobOfferEmail,
+} from '../../../shared/jobOfferDetection.js';
 
 const NAME = 'JunkRescueAnalyzer';
 
@@ -124,6 +129,36 @@ export const JunkRescueAnalyzer: Analyzer = {
       if (allSenders.has(sender)) score += 0.3;
       if (info.recentCount > 0) score += 0.2;
       if (info.ids.length > 1) score += 0.1;
+
+      // Job / recruiting mail in junk — often LinkedIn alerts or direct recruiters.
+      if (matchJobDomain(domain)) {
+        const sample = junk.find((e) => e.senderEmail === sender);
+        if (
+          sample &&
+          isJobOfferEmail(
+            {
+              fromEmail: sender,
+              fromName: info.senderName,
+              subject: sample.subject,
+              folderId: sample.folderId,
+            },
+            0.45
+          )
+        ) {
+          score += 0.35;
+        }
+      } else if (info.ids.length > 0) {
+        const sample = junk.find((e) => e.senderEmail === sender);
+        const jobScore = sample
+          ? scoreJobOfferEmail({
+              fromEmail: sender,
+              fromName: info.senderName,
+              subject: sample.subject,
+              folderId: sample.folderId,
+            }).score
+          : 0;
+        if (jobScore >= 0.55) score += jobScore * 0.5;
+      }
 
       // Hard penalties — refuse to recommend rescue on risky signals.
       if (info.spoofedName) score -= 0.5;

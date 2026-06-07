@@ -17,8 +17,13 @@ import {
   clamp01,
   domainOf,
   matchDomain,
+  parseSubjects,
 } from './types.js';
 import type { SyncDb, SyncSenderGroupRow } from '../../services/syncDb.js';
+import {
+  isJobOfferEmail,
+  isLinkedInSocialNoise,
+} from '../../../shared/jobOfferDetection.js';
 
 const NAME = 'FolderSuggestionAnalyzer';
 
@@ -137,10 +142,36 @@ const PRESET_CATEGORIES: Record<string, { color: string; domains: string[] }> = 
       'kp.org',
     ],
   },
+  'Job Offers & Recruiting': {
+    color: 'cyan',
+    domains: [
+      'linkedin.com',
+      'e.linkedin.com',
+      'greenhouse.io',
+      'lever.co',
+      'ashbyhq.com',
+      'workday.com',
+      'myworkday.com',
+      'myworkdayjobs.com',
+      'icims.com',
+      'smartrecruiters.com',
+      'jobvite.com',
+      'recruitee.com',
+      'workable.com',
+      'indeed.com',
+      'glassdoor.com',
+      'ziprecruiter.com',
+      'hired.com',
+      'dice.com',
+      'wellfound.com',
+      'otta.com',
+      'joinhandshake.com',
+      'handshake.com',
+    ],
+  },
   Social: {
     color: 'pink',
     domains: [
-      'linkedin.com',
       'twitter.com',
       'x.com',
       'facebook.com',
@@ -181,10 +212,51 @@ export const FolderSuggestionAnalyzer: Analyzer = {
     // ── Pass 1: preset categories ───────────────────────────────────
     for (const [folderName, def] of Object.entries(PRESET_CATEGORIES)) {
       if (existing.has(folderName.toLowerCase())) continue;
-      const matched = senders.filter((s) => matchDomain(domainOf(s.id), def.domains));
-      if (matched.length < 2) continue;
+      const matched = senders.filter((s) => {
+        if (!matchDomain(domainOf(s.id), def.domains)) return false;
+        if (folderName === 'Job Offers & Recruiting') {
+          const subjects = parseSubjects(s.sampleSubjects);
+          return subjects.some((subject) =>
+            isJobOfferEmail({ fromEmail: s.id, fromName: s.senderName, subject })
+          ) || isJobOfferEmail({ fromEmail: s.id, fromName: s.senderName, subject: '' });
+        }
+        if (folderName === 'Social' && domainOf(s.id).includes('linkedin')) {
+          const subjects = parseSubjects(s.sampleSubjects);
+          return subjects.some((subject) =>
+            !isLinkedInSocialNoise({ fromEmail: s.id, subject })
+          );
+        }
+        return true;
+      });
+      if (matched.length < 1 && folderName === 'Job Offers & Recruiting') {
+        // Job folder: allow single strong sender (e.g. one recruiter).
+        const jobSenders = senders.filter((s) => {
+          const subjects = parseSubjects(s.sampleSubjects);
+          return subjects.some((subject) =>
+            isJobOfferEmail({ fromEmail: s.id, fromName: s.senderName, subject }, 0.55)
+          );
+        });
+        if (jobSenders.length >= 1) {
+          const totalEmails = jobSenders.reduce((sum, x) => sum + x.emailCount, 0);
+          if (totalEmails >= 2) {
+            out.push(
+              buildFolderSuggestion(
+                folderName,
+                def.color,
+                jobSenders,
+                clamp01(0.5 + totalEmails / 40),
+                'preset',
+                ctx
+              )
+            );
+          }
+        }
+        continue;
+      }
+      if (matched.length < (folderName === 'Job Offers & Recruiting' ? 1 : 2)) continue;
       const totalEmails = matched.reduce((sum, s) => sum + s.emailCount, 0);
-      if (totalEmails < 10) continue;
+      const minEmails = folderName === 'Job Offers & Recruiting' ? 2 : 10;
+      if (totalEmails < minEmails) continue;
 
       const score = totalEmails * 0.5 + matched.length * 10 * 0.5;
       const confidence = clamp01(score / 200);

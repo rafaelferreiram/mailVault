@@ -275,8 +275,21 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  /** Display name shown in the app; falls back to username when unset. */
+  displayName: string;
+  /** Single emoji avatar (e.g. "🦊"). Mutually exclusive with avatarImage. */
+  avatarEmoji: string | null;
+  /** Data URL for a profile photo (JPEG/PNG, stored locally). */
+  avatarImage: string | null;
   createdAt: number;
   lastLogin: number | null;
+}
+
+export interface UserProfilePatch {
+  displayName?: string;
+  email?: string;
+  avatarEmoji?: string | null;
+  avatarImage?: string | null;
 }
 
 export interface SessionState {
@@ -361,6 +374,8 @@ export interface SuggestionActionPayload {
   /** Whether to also create a rule alongside the immediate action. */
   createRule?: boolean;
   ruleDescription?: string;
+  /** When moving from Junk/Spam, also mark as not junk on the provider. */
+  markNotJunk?: boolean;
   /** Sender to block + optionally delete history. */
   blockSenderEmail?: string;
   deleteHistory?: boolean;
@@ -575,7 +590,9 @@ export const IPC = {
   UserMe: 'user:me',
   UserHasAny: 'user:has-any',
   UserChangePassword: 'user:change-password',
+  UserUpdateProfile: 'user:update-profile',
   UserChanged: 'user:changed',
+  AuthUpdateAccount: 'auth:update-account',
 
   // OAuth credential setup helpers
   OAuthConfigStatus: 'oauth:config-status',
@@ -626,6 +643,8 @@ export const IPC = {
   EmailRestore: 'email:restore',
   EmailsListByFolder: 'emails:list-by-folder',
   EmailsGetPreview: 'emails:get-preview',
+  EmailsScanJobOffers: 'emails:scan-job-offers',
+  EmailsOrganizeJobOffers: 'emails:organize-job-offers',
   // Rules
   RulesList: 'rules:list',
   RulesCreate: 'rules:create',
