@@ -232,14 +232,28 @@ export function SpaceHogsCard({
           {data.spaceHogs.map((h) => (
             <li
               key={h.email}
-              className="group relative rounded-sm px-1 py-1 hover:bg-bg-hover transition-colors cursor-pointer"
+              className="group rounded-sm px-1 py-1 hover:bg-bg-hover transition-colors cursor-pointer"
               onClick={() => onSender(h.email)}
             >
-              <div className="flex items-baseline justify-between gap-2 text-[11px]">
-                <span className="truncate font-mono">{h.email}</span>
-                <span className="shrink-0 tabular-nums text-fg-muted">
+              <div className="flex items-center justify-between gap-2 text-[11px] min-h-7">
+                <span className="truncate font-mono flex-1 min-w-0">{h.email}</span>
+                <span className="shrink-0 tabular-nums text-fg-muted group-hover:hidden">
                   {formatNumber(h.count)} · {formatBytes(h.bytes)}
                 </span>
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="xs"
+                  uppercase={false}
+                  iconLeft={<Trash2 className="w-3 h-3" />}
+                  className="hidden group-hover:inline-flex shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(h.email);
+                  }}
+                >
+                  Delete
+                </Button>
               </div>
               <div className="h-1.5 bg-bg-hover mt-1 overflow-hidden">
                 <div
@@ -247,16 +261,6 @@ export function SpaceHogsCard({
                   style={{ width: `${(h.bytes / max) * 100}%`, background: h.categoryColor }}
                 />
               </div>
-              <button
-                type="button"
-                className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 text-[10px] text-danger font-mono"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(h.email);
-                }}
-              >
-                Delete
-              </button>
             </li>
           ))}
         </ul>

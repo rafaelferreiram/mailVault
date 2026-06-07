@@ -5,9 +5,10 @@ interface Props {
   name?: string;
   url?: string;
   size?: number;
+  className?: string;
 }
 
-export function Avatar({ email, name, url, size = 24 }: Props) {
+export function Avatar({ email, name, url, size = 24, className }: Props) {
   const text = initials(name || email || '?');
   const hue = hashString(email || name || '') % 360;
 
@@ -16,7 +17,7 @@ export function Avatar({ email, name, url, size = 24 }: Props) {
       <img
         src={url}
         alt={name || email}
-        className="object-cover border border-border"
+        className={className ?? 'object-cover border border-border'}
         style={{ width: size, height: size }}
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -27,7 +28,7 @@ export function Avatar({ email, name, url, size = 24 }: Props) {
 
   return (
     <div
-      className="flex items-center justify-center font-mono font-semibold border"
+      className={className ?? 'flex items-center justify-center font-mono font-semibold border'}
       style={{
         width: size,
         height: size,

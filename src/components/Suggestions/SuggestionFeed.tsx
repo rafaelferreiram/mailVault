@@ -137,7 +137,7 @@ export function SuggestionFeed() {
 
       {/* Scrollable region */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="p-6 space-y-5">
+        <div className="page-content space-y-5">
           {isAnalyzing && data?.progress && <AnalyzingBar progress={data.progress} />}
 
           <SummaryCard
