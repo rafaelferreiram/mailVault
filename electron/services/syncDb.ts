@@ -156,7 +156,7 @@ export class SyncDb {
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('temp_store = MEMORY');
     // Negative cache_size = KB, so -8000 ≈ 8 MB page cache. Keeps memory bounded.
-    this.db.pragma('cache_size = -8000');
+    this.db.pragma('cache_size = -32000');
     this.migrate();
   }
 
@@ -262,6 +262,16 @@ export class SyncDb {
         priority           INTEGER NOT NULL DEFAULT 5,
         created_at         INTEGER NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS mail_folders (
+        id           TEXT NOT NULL,
+        account_id   TEXT NOT NULL,
+        name         TEXT NOT NULL,
+        parent_id    TEXT,
+        is_system    INTEGER NOT NULL DEFAULT 0,
+        updated_at   INTEGER NOT NULL,
+        PRIMARY KEY (account_id, id)
+      );
     `);
 
     // ── Soft migrations for forward-compatibility ──────────────────
@@ -295,6 +305,8 @@ export class SyncDb {
       CREATE INDEX IF NOT EXISTS idx_emails_sender      ON emails(sender_email);
       CREATE INDEX IF NOT EXISTS idx_emails_received    ON emails(received_at DESC);
       CREATE INDEX IF NOT EXISTS idx_emails_folder      ON emails(folder_id);
+      CREATE INDEX IF NOT EXISTS idx_emails_account_folder_received
+        ON emails(account_id, folder_id, received_at DESC);
 
       CREATE INDEX IF NOT EXISTS idx_sg_count           ON sender_groups(email_count DESC);
       CREATE INDEX IF NOT EXISTS idx_sg_size            ON sender_groups(total_size_bytes DESC);
@@ -359,25 +371,27 @@ export class SyncDb {
     return r.n;
   }
 
-  /** Stream emails in chunks for stage 3 grouping — never load all at once. */
-  *streamEmails(accountId: string, chunkSize = 1000): Generator<SyncEmailRow[]> {
+  /** Stream emails in chunks for stage 3 grouping — keyset pagination (O(n)). */
+  *streamEmails(accountId: string, chunkSize = 2000): Generator<SyncEmailRow[]> {
     const stmt = this.db.prepare(`
-      SELECT id, account_id AS accountId, sender_email AS senderEmail,
+      SELECT rowid AS _rowid, id, account_id AS accountId, sender_email AS senderEmail,
              sender_name AS senderName, subject, received_at AS receivedAt,
              size_bytes AS sizeBytes, folder_id AS folderId, is_read AS isRead,
              is_newsletter AS isNewsletter,
              has_list_unsubscribe AS hasListUnsubscribe,
              list_unsubscribe_value AS listUnsubscribeValue, fetched_at AS fetchedAt
-        FROM emails WHERE account_id = ?
+        FROM emails WHERE account_id = ? AND rowid > ?
         ORDER BY rowid
-        LIMIT ? OFFSET ?
+        LIMIT ?
     `);
-    let offset = 0;
+    let lastRowid = 0;
     while (true) {
-      const rows = stmt.all(accountId, chunkSize, offset) as SyncEmailRow[];
+      const rows = stmt.all(accountId, lastRowid, chunkSize) as Array<
+        SyncEmailRow & { _rowid: number }
+      >;
       if (rows.length === 0) return;
-      yield rows;
-      offset += rows.length;
+      lastRowid = rows[rows.length - 1]._rowid;
+      yield rows.map(({ _rowid: _r, ...rest }) => rest);
     }
   }
 
@@ -584,6 +598,45 @@ export class SyncDb {
          FROM sender_groups WHERE account_id = ?`
       )
       .all(accountId) as SyncSenderGroupRow[];
+  }
+
+  topSendersByBytes(
+    accountId: string,
+    limit = 8
+  ): Array<{
+    id: string;
+    senderName: string | null;
+    emailCount: number;
+    totalSizeBytes: number;
+    category: string | null;
+  }> {
+    return this.db
+      .prepare(
+        `SELECT id, sender_name AS senderName, email_count AS emailCount,
+                total_size_bytes AS totalSizeBytes, category
+         FROM sender_groups
+         WHERE account_id = ?
+         ORDER BY total_size_bytes DESC
+         LIMIT ?`
+      )
+      .all(accountId, limit) as Array<{
+      id: string;
+      senderName: string | null;
+      emailCount: number;
+      totalSizeBytes: number;
+      category: string | null;
+    }>;
+  }
+
+  listMessageIdsBySender(accountId: string, senderEmail: string): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id FROM emails
+         WHERE account_id = ? AND sender_email = ?
+         ORDER BY received_at DESC`
+      )
+      .all(accountId, senderEmail.toLowerCase()) as Array<{ id: string }>;
+    return rows.map((r) => r.id);
   }
 
   /** Wipes sender_groups + folder_suggestions for an account before a re-aggregation pass. */
@@ -967,6 +1020,54 @@ export class SyncDb {
          GROUP BY folder_id`
       )
       .all(newSince, accountId) as Array<{ folderId: string; count: number; newCount: number }>;
+  }
+
+  upsertMailFolders(
+    accountId: string,
+    rows: Array<{ id: string; name: string; parentId: string | null; isSystem: number }>
+  ): void {
+    const stmt = this.db.prepare(
+      `INSERT INTO mail_folders (id, account_id, name, parent_id, is_system, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(account_id, id) DO UPDATE SET
+         name = excluded.name,
+         parent_id = excluded.parent_id,
+         is_system = excluded.is_system,
+         updated_at = excluded.updated_at`
+    );
+    const now = Date.now();
+    const tx = this.db.transaction(() => {
+      for (const r of rows) {
+        stmt.run(r.id, accountId, r.name, r.parentId, r.isSystem, now);
+      }
+    });
+    tx();
+  }
+
+  listMailFolders(accountId: string): Array<{
+    id: string;
+    name: string;
+    parentId: string | null;
+    isSystem: boolean;
+  }> {
+    return this.db
+      .prepare(
+        `SELECT id, name, parent_id AS parentId, is_system AS isSystem
+         FROM mail_folders WHERE account_id = ?
+         ORDER BY name COLLATE NOCASE ASC`
+      )
+      .all(accountId)
+      .map((r) => ({
+        ...(r as { id: string; name: string; parentId: string | null; isSystem: number }),
+        isSystem: Boolean((r as { isSystem: number }).isSystem),
+      }));
+  }
+
+  getMailFoldersUpdatedAt(accountId: string): number | null {
+    const r = this.db
+      .prepare('SELECT MAX(updated_at) AS ts FROM mail_folders WHERE account_id = ?')
+      .get(accountId) as { ts: number | null } | undefined;
+    return r?.ts ?? null;
   }
 
   countDeletableSenders(accountId: string): { count: number; bytes: number } {

@@ -7,6 +7,23 @@ import {
   getRecentActivity,
 } from './liveSyncDb.js';
 import { storage } from '../store.js';
+import {
+  ensureFolderCache,
+  formatFolderDisplayName,
+  type CachedMailFolder,
+} from './folderCache.js';
+
+const SNAPSHOT_CACHE_TTL_MS = 45_000;
+const snapshotCache = new Map<string, { at: number; data: DashboardSnapshot }>();
+
+export function invalidateDashboardSnapshot(scope?: string | 'all') {
+  if (!scope) {
+    snapshotCache.clear();
+    return;
+  }
+  snapshotCache.delete(scope);
+  if (scope !== 'all') snapshotCache.delete('all');
+}
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   shopping: { label: 'Shopping', color: '#f59e0b' },
@@ -114,7 +131,17 @@ function emptySnapshot(scope: 'all' | string): DashboardSnapshot {
   };
 }
 
-export function getDashboardSnapshot(scope: string | 'all'): DashboardSnapshot {
+export async function getDashboardSnapshot(scope: string | 'all'): Promise<DashboardSnapshot> {
+  const cached = snapshotCache.get(scope);
+  if (cached && Date.now() - cached.at < SNAPSHOT_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  const data = await buildDashboardSnapshot(scope);
+  snapshotCache.set(scope, { at: Date.now(), data });
+  return data;
+}
+
+async function buildDashboardSnapshot(scope: string | 'all'): Promise<DashboardSnapshot> {
   const accountIds = resolveAccountIds(scope);
   if (accountIds.length === 0) return emptySnapshot(scope);
 
@@ -150,8 +177,9 @@ export function getDashboardSnapshot(scope: string | 'all'): DashboardSnapshot {
 
   const folderMap = new Map<
     string,
-    { folderId: string; count: number; newCount: number; isJunk: boolean }
+    { accountId: string; folderId: string; count: number; newCount: number; isJunk: boolean }
   >();
+  const folderIdsByAccount = new Map<string, Set<string>>();
 
   for (const accountId of accountIds) {
     let db: SyncDb | null = null;
@@ -193,7 +221,7 @@ export function getDashboardSnapshot(scope: string | 'all'): DashboardSnapshot {
       ruleSuggestions += db.countActiveSuggestions(accountId, 'CREATE_RULE');
       junkPending += db.countActiveSuggestions(accountId, 'MOVE_FROM_JUNK');
 
-      for (const g of db.listSenderGroups(accountId)) {
+      for (const g of db.topSendersByBytes(accountId, 12)) {
         allSenders.push({
           email: g.id,
           name: g.senderName || g.id,
@@ -207,6 +235,7 @@ export function getDashboardSnapshot(scope: string | 'all'): DashboardSnapshot {
         const fid = f.folderId || 'INBOX';
         const isJunk = /junk|spam/i.test(fid);
         const cur = folderMap.get(`${accountId}:${fid}`) ?? {
+          accountId,
           folderId: fid,
           count: 0,
           newCount: 0,
@@ -215,6 +244,9 @@ export function getDashboardSnapshot(scope: string | 'all'): DashboardSnapshot {
         cur.count += f.count;
         cur.newCount += f.newCount;
         folderMap.set(`${accountId}:${fid}`, cur);
+        const ids = folderIdsByAccount.get(accountId) ?? new Set<string>();
+        ids.add(fid);
+        folderIdsByAccount.set(accountId, ids);
       }
     } finally {
       db.close();
@@ -344,18 +376,27 @@ export function getDashboardSnapshot(scope: string | 'all'): DashboardSnapshot {
     undoneAt: log.undoneAt,
   }));
 
+  const folderNamesByAccount = new Map<string, CachedMailFolder[]>();
+  for (const accountId of accountIds) {
+    const required = [...(folderIdsByAccount.get(accountId) ?? [])];
+    folderNamesByAccount.set(accountId, await ensureFolderCache(accountId, required));
+  }
+
   const folders = [...folderMap.values()]
     .sort((a, b) => b.count - a.count)
-    .map((f) => ({
-      folderId: f.folderId,
-      name: folderDisplayName(f.folderId),
-      count: f.count,
-      newSinceSync: f.newCount,
-      isJunk: f.isJunk,
-      isTrash: /trash|deleted/i.test(f.folderId),
-      isInbox: /^inbox$/i.test(f.folderId) || f.folderId === 'INBOX',
-      junkWarning: f.isJunk && junkPending > 0,
-    }));
+    .map((f) => {
+      const cached = folderNamesByAccount.get(f.accountId) ?? [];
+      return {
+        folderId: f.folderId,
+        name: formatFolderDisplayName(cached, f.folderId),
+        count: f.count,
+        newSinceSync: f.newCount,
+        isJunk: f.isJunk,
+        isTrash: /trash|deleted/i.test(f.folderId),
+        isInbox: /^inbox$/i.test(f.folderId) || f.folderId === 'INBOX',
+        junkWarning: f.isJunk && junkPending > 0,
+      };
+    });
 
   const syncTimeline: DashboardSnapshot['syncTimeline'] = [];
   for (const accountId of accountIds) {
@@ -443,12 +484,4 @@ function resolveAccountIds(scope: string | 'all'): string[] {
   const accounts = storage.listAccounts();
   if (scope === 'all') return accounts.map((a) => a.id);
   return accounts.some((a) => a.id === scope) ? [scope] : [];
-}
-
-function folderDisplayName(folderId: string): string {
-  if (!folderId || folderId === 'INBOX') return 'Inbox';
-  if (/junk|spam/i.test(folderId)) return 'Junk';
-  if (/trash|deleted/i.test(folderId)) return 'Trash';
-  const parts = folderId.split('/');
-  return parts[parts.length - 1] ?? folderId;
 }

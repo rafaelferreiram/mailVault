@@ -244,6 +244,8 @@ const api = {
     ipcRenderer.invoke(IPC.PendingResolve, id, resolution),
   undoLiveAction: (actionLogId: string) => ipcRenderer.invoke(IPC.ActionLogUndo, actionLogId),
   getDashboard: (scope: string | 'all') => ipcRenderer.invoke(IPC.DashboardGet, scope),
+  listMessageIdsBySender: (accountId: string, senderEmail: string) =>
+    ipcRenderer.invoke(IPC.SyncMessageIdsBySender, accountId, senderEmail),
   onLiveNotification: (cb: (p: unknown) => void) => {
     const sub = (_e: unknown, p: unknown) => cb(p);
     ipcRenderer.on(IPC.LiveNotification, sub);

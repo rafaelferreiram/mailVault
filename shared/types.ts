@@ -203,6 +203,7 @@ export interface SyncProgressEvent {
   result?: {
     messages: EmailMessage[];
     suggestions: FolderSuggestion[];
+    senderGroups?: SenderGroup[];
   };
 }
 
@@ -683,6 +684,7 @@ export const IPC = {
   PendingResolve: 'pending:resolve',
   ActionLogUndo: 'action-log:undo',
   DashboardGet: 'dashboard:get',
+  SyncMessageIdsBySender: 'sync:message-ids-by-sender',
 } as const;
 
 // ───────────────────────────────────────────────────────────────────────

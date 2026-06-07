@@ -25,6 +25,7 @@ import {
 } from './services/envConfig.js';
 import { runIntelligence, cancelIntelligence } from './services/intelligenceEngine.js';
 import { getDashboardSnapshot } from './services/dashboardData.js';
+import { listFoldersFast } from './services/folderCache.js';
 import {
   checkNowAll,
   getLiveSyncStatus,
@@ -1128,8 +1129,7 @@ export function registerIpc() {
   // ─── Folders ───────────────────────────────────────────────────────
   ipcMain.handle(IPC.FoldersList, async (_evt, accountId: string): Promise<Folder[]> => {
     requireOwnedAccount(accountId);
-    const c = clientFor(accountId);
-    return c.kind === 'google' ? await c.gmail.listLabels() : await c.graph.listMailFolders();
+    return listFoldersFast(accountId);
   });
 
   ipcMain.handle(
@@ -1406,17 +1406,26 @@ export function registerIpc() {
       storage.setRules(accountId, rules);
 
       let deletedCount = 0;
-      if (payload.deleteHistorical && payload.messageIds.length) {
+      let idsToDelete = payload.messageIds;
+      if (payload.deleteHistorical && idsToDelete.length === 0) {
+        const db = openSyncDb(accountId);
+        try {
+          idsToDelete = db.listMessageIdsBySender(accountId, payload.email);
+        } finally {
+          db.close();
+        }
+      }
+      if (payload.deleteHistorical && idsToDelete.length) {
         const mode = storage.getSettings().deletionMode;
         if (c.kind === 'google' && mode === 'trash') {
           try {
-            await c.gmail.batchTrash(payload.messageIds);
-            deletedCount = payload.messageIds.length;
+            await c.gmail.batchTrash(idsToDelete);
+            deletedCount = idsToDelete.length;
           } catch {
             // continue
           }
         } else {
-          for (const id of payload.messageIds) {
+          for (const id of idsToDelete) {
             try {
               if (c.kind === 'google') {
                 if (mode === 'permanent') await c.gmail.deleteMessage(id);
@@ -1577,6 +1586,19 @@ export function registerIpc() {
   ipcMain.handle(IPC.DashboardGet, async (_evt, scope: string | 'all') => {
     requireUser();
     const s = scope === 'all' || !scope ? 'all' : scope;
-    return getDashboardSnapshot(s);
+    return await getDashboardSnapshot(s);
   });
+
+  ipcMain.handle(
+    IPC.SyncMessageIdsBySender,
+    async (_evt, accountId: string, senderEmail: string): Promise<string[]> => {
+      requireOwnedAccount(accountId);
+      const db = openSyncDb(accountId);
+      try {
+        return db.listMessageIdsBySender(accountId, senderEmail);
+      } finally {
+        db.close();
+      }
+    }
+  );
 }
