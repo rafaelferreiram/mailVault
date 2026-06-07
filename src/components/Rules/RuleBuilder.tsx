@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Checkbox } from '../ui/Checkbox';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useRulesStore } from '@/stores/rulesStore';
+import { useFoldersStore } from '@/stores/foldersStore';
 import { useUIStore } from '@/stores/uiStore';
+import { displayFolderName, sortFoldersForDisplay } from '@/lib/folders';
 import type { MailRule } from '@shared/types';
 
 interface Props {
@@ -16,18 +18,34 @@ interface Props {
 
 export function RuleBuilder({ open, onClose, existing, prefill }: Props) {
   const activeId = useAccountsStore((s) => s.activeId);
+  const account = useAccountsStore((s) => s.accounts.find((a) => a.id === s.activeId));
+  const folders =
+    useFoldersStore((s) => (activeId ? s.byAccount[activeId]?.folders : undefined)) ?? [];
+  const loadFolders = useFoldersStore((s) => s.load);
   const create = useRulesStore((s) => s.create);
   const update = useRulesStore((s) => s.update);
   const showToast = useUIStore((s) => s.showToast);
 
   const [rule, setRule] = useState<MailRule>(emptyRule());
+  const [moveFolderId, setMoveFolderId] = useState<string>('');
   const [busy, setBusy] = useState(false);
+
+  const folderOptions = useMemo(
+    () => sortFoldersForDisplay(folders.filter((f) => f.name && !f.isSystem)),
+    [folders]
+  );
+
+  useEffect(() => {
+    if (open && activeId) void loadFolders(activeId);
+  }, [open, activeId, loadFolders]);
 
   useEffect(() => {
     if (open) {
-      setRule(existing ? { ...existing } : { ...emptyRule(), ...prefill });
+      const base = existing ? { ...existing } : { ...emptyRule(), ...prefill };
+      setRule(base);
+      setMoveFolderId(base.moveToFolderId ?? (base.addLabel && account?.provider === 'google' ? base.addLabel : '') ?? '');
     }
-  }, [open, existing, prefill]);
+  }, [open, existing, prefill, account?.provider]);
 
   const set = <K extends keyof MailRule>(k: K, v: MailRule[K]) =>
     setRule((r) => ({ ...r, [k]: v }));
@@ -38,12 +56,32 @@ export function RuleBuilder({ open, onClose, existing, prefill }: Props) {
       showToast('err', 'Add at least one condition');
       return;
     }
-    if (!rule.delete && !rule.archive && !rule.markRead && !rule.addLabel && !rule.forwardTo) {
+    if (
+      !rule.delete &&
+      !rule.archive &&
+      !rule.markRead &&
+      !rule.addLabel &&
+      !rule.forwardTo &&
+      !moveFolderId
+    ) {
       showToast('err', 'Add at least one action');
       return;
     }
     setBusy(true);
-    const result = existing ? await update(activeId, rule) : await create(activeId, rule);
+    const payload: MailRule = { ...rule };
+    if (moveFolderId) {
+      if (account?.provider === 'google') {
+        payload.addLabel = moveFolderId;
+        payload.moveToFolderId = undefined;
+        if (!payload.archive && !payload.delete) payload.archive = true;
+      } else {
+        payload.moveToFolderId = moveFolderId;
+        payload.addLabel = undefined;
+      }
+    } else {
+      payload.moveToFolderId = undefined;
+    }
+    const result = existing ? await update(activeId, payload) : await create(activeId, payload);
     setBusy(false);
     if (result) {
       showToast('ok', existing ? 'Rule updated' : 'Rule created');
@@ -111,6 +149,29 @@ export function RuleBuilder({ open, onClose, existing, prefill }: Props) {
 
         <div className="space-y-3">
           <div className="label-mono">Then do</div>
+          <div>
+            <label htmlFor="rule-move-folder" className="label-mono block mb-1.5">
+              Move to folder
+            </label>
+            <select
+              id="rule-move-folder"
+              value={moveFolderId}
+              onChange={(e) => setMoveFolderId(e.target.value)}
+              className="input"
+            >
+              <option value="">— No folder move —</option>
+              {folderOptions.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {displayFolderName(f)}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-fg-subtle mt-1">
+              {account?.provider === 'google'
+                ? 'Applies a Gmail label and can skip Inbox.'
+                : 'Moves matching mail to the Outlook folder.'}
+            </p>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Toggle
               label="Move to Trash"

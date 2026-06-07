@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Sparkles, Trash2, Power, RefreshCw } from 'lucide-react';
+import { Plus, Sparkles, Trash2, Power, RefreshCw, Filter } from 'lucide-react';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useRulesStore } from '@/stores/rulesStore';
 import { useSyncStore } from '@/stores/syncStore';
@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { Skeleton } from '../ui/Skeleton';
 import { RuleBuilder } from './RuleBuilder';
 import { RuleSuggestions } from './RuleSuggestions';
+import { CreateFolderRuleModal } from '../Folders/CreateFolderRuleModal';
 import type { MailRule } from '@shared/types';
 import { relativeTime } from '@/lib/format';
 
@@ -24,6 +25,7 @@ export function Rules() {
   const showToast = useUIStore((s) => s.showToast);
 
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [folderRuleOpen, setFolderRuleOpen] = useState(false);
   const [editing, setEditing] = useState<MailRule | null>(null);
 
   useEffect(() => {
@@ -58,6 +60,14 @@ export function Rules() {
               Refresh
             </Button>
             <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={<Filter className="w-3.5 h-3.5" />}
+              onClick={() => setFolderRuleOpen(true)}
+            >
+              Folder + rule
+            </Button>
+            <Button
               variant="primary"
               size="sm"
               iconLeft={<Plus className="w-3.5 h-3.5" />}
@@ -72,7 +82,7 @@ export function Rules() {
         }
       />
 
-      <div className="p-6 space-y-5">
+      <div className="page-content space-y-5">
         {/* Suggestions */}
         {suggestions.length > 0 && (
           <div className="panel p-4">
@@ -108,6 +118,12 @@ export function Rules() {
             </div>
           ) : (
             <div className="zebra">
+              <div className="rules-table-header grid grid-cols-12 px-3 h-7 panel-inset items-center gap-3 label-mono border-b border-border-subtle">
+                <div className="col-span-1" />
+                <div className="col-span-7">Rule</div>
+                <div className="col-span-2">Source</div>
+                <div className="col-span-2 text-right">Actions</div>
+              </div>
               {rules.map((r) => (
                 <div
                   key={r.id}
@@ -124,7 +140,7 @@ export function Rules() {
                       setBuilderOpen(true);
                     }
                   }}
-                  className="grid grid-cols-12 px-3 grid-row items-center gap-3 text-[12px] cursor-pointer hover:bg-bg-hover/60 focus:outline-none focus:bg-bg-hover"
+                  className="rules-table-row grid grid-cols-12 px-3 grid-row items-center gap-3 text-[12px] cursor-pointer hover:bg-bg-hover/60 focus:outline-none focus:bg-bg-hover"
                   title="Edit rule"
                 >
                   <div className="col-span-1">
@@ -139,7 +155,7 @@ export function Rules() {
                   <div className="col-span-2 text-[10px] font-mono uppercase tracking-widest text-fg-muted">
                     {r.source === 'remote' ? 'Provider' : `Local · ${relativeTime(r.createdAt)}`}
                   </div>
-                  <div className="col-span-2 flex items-center justify-end gap-0.5">
+                  <div className="col-span-2 flex items-center justify-end gap-0.5 rules-table-row__actions">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -183,6 +199,7 @@ export function Rules() {
         }}
         existing={editing}
       />
+      <CreateFolderRuleModal open={folderRuleOpen} onClose={() => setFolderRuleOpen(false)} />
     </div>
   );
 }

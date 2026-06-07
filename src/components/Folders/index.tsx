@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Plus, Folder as FolderIcon, RefreshCw, Search } from 'lucide-react';
+import { Plus, Folder as FolderIcon, RefreshCw, Search, Filter } from 'lucide-react';
 import type { Folder as FolderType } from '@shared/types';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useFoldersStore, COLOR_PALETTE } from '@/stores/foldersStore';
@@ -18,6 +18,8 @@ import {
 } from '@/lib/folders';
 import { Skeleton } from '../ui/Skeleton';
 import { SmartSuggestions } from './SmartSuggestions';
+import { CreateFolderRuleModal } from './CreateFolderRuleModal';
+import { JobOffersOrganizer } from './JobOffersOrganizer';
 import { FolderTree } from '@/components/FolderTree';
 
 // Stable reference — see `EMPTY_BLOCKED` in Blocked/index.tsx for the rationale.
@@ -39,6 +41,7 @@ export function Folders() {
 
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [folderRuleOpen, setFolderRuleOpen] = useState(false);
   const [name, setName] = useState('');
   const [color, setColorState] = useState(COLOR_PALETTE[0]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +76,7 @@ export function Folders() {
         key={f.id}
         type="button"
         onClick={() => openFolder(f.id, displayFolderName(f))}
-        className={`w-full grid grid-cols-12 px-3 grid-row items-center text-[12px] hover:bg-bg-hover text-left transition-colors ${
+        className={`w-full grid grid-cols-12 px-3 grid-row items-center text-[12px] hover:bg-bg-hover text-left transition-colors data-grid-row ${
           pinned && isInboxFolder(f) ? 'bg-accent/[0.04] border-l-2 border-l-accent' : ''
         }`}
       >
@@ -136,6 +139,14 @@ export function Folders() {
               Refresh
             </Button>
             <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={<Filter className="w-3 h-3" />}
+              onClick={() => setFolderRuleOpen(true)}
+            >
+              Folder + rule
+            </Button>
+            <Button
               variant="primary"
               size="sm"
               iconLeft={<Plus className="w-3 h-3" />}
@@ -147,7 +158,8 @@ export function Folders() {
         }
       />
 
-      <div className="p-6 space-y-5">
+      <div className="page-content space-y-5">
+        <JobOffersOrganizer />
         <SmartSuggestions />
 
         {/* Toolbar */}
@@ -247,6 +259,8 @@ export function Folders() {
           )}
         </div>
       </div>
+
+      <CreateFolderRuleModal open={folderRuleOpen} onClose={() => setFolderRuleOpen(false)} />
     </div>
   );
 }
