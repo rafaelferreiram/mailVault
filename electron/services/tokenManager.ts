@@ -2,6 +2,7 @@ import { keychain } from './keychain.js';
 import { storage } from '../store.js';
 import { refreshGoogle } from '../auth/google.js';
 import { refreshMicrosoft } from '../auth/microsoft.js';
+import { loadOAuthEnv } from './envConfig.js';
 import { AuthError, type Provider, type OAuthTokens } from '../../shared/types.js';
 
 const inflight = new Map<string, Promise<string>>();
@@ -14,11 +15,13 @@ export function onReauthNeeded(fn: ReauthListener) {
 }
 
 export function getClientId(provider: Provider): string {
+  loadOAuthEnv();
   if (provider === 'google') return process.env.VITE_GOOGLE_CLIENT_ID ?? '';
   return process.env.VITE_MICROSOFT_CLIENT_ID ?? '';
 }
 
 export function getClientSecret(provider: Provider): string {
+  loadOAuthEnv();
   if (provider === 'google') return process.env.VITE_GOOGLE_CLIENT_SECRET ?? '';
   return '';
 }

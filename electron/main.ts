@@ -6,6 +6,7 @@ import { registerIpc } from './ipc.js';
 import { runCli } from './cli/index.js';
 import { IPC } from '../shared/types.js';
 import { storage } from './store.js';
+import { loadOAuthEnvEarly, loadOAuthEnv } from './services/envConfig.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,37 +20,8 @@ if (process.platform === 'darwin') {
 }
 process.title = APP_NAME;
 
-// Best-effort .env loader for `npm run electron:dev` (Vite handles dev-server env, but the
-// main process spawns separately and needs its own pass).
-loadDotenv(path.resolve(__dirname, '..', '.env'));
-
-process.env.VITE_GOOGLE_CLIENT_ID ??= process.env.GOOGLE_CLIENT_ID ?? '';
-process.env.VITE_GOOGLE_CLIENT_SECRET ??= process.env.GOOGLE_CLIENT_SECRET ?? '';
-process.env.VITE_MICROSOFT_CLIENT_ID ??= process.env.MICROSOFT_CLIENT_ID ?? '';
-
-function loadDotenv(envPath: string) {
-  try {
-    if (!fs.existsSync(envPath)) return;
-    const text = fs.readFileSync(envPath, 'utf8');
-    for (const raw of text.split(/\r?\n/)) {
-      const line = raw.trim();
-      if (!line || line.startsWith('#')) continue;
-      const eq = line.indexOf('=');
-      if (eq < 0) continue;
-      const key = line.slice(0, eq).trim();
-      let val = line.slice(eq + 1).trim();
-      if (
-        (val.startsWith('"') && val.endsWith('"')) ||
-        (val.startsWith("'") && val.endsWith("'"))
-      ) {
-        val = val.slice(1, -1);
-      }
-      if (process.env[key] === undefined) process.env[key] = val;
-    }
-  } catch (e) {
-    console.warn('[main] could not load .env:', (e as Error).message);
-  }
-}
+// Best-effort early load (dev project-root .env before app.whenReady).
+loadOAuthEnvEarly();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -159,6 +131,7 @@ if (isCli) {
   if (process.platform === 'darwin' && app.dock) app.dock.hide();
   app.commandLine.appendSwitch('disable-gpu');
   app.whenReady().then(async () => {
+    loadOAuthEnv();
     let code = 0;
     try {
       code = await runCli(process.argv);
@@ -173,6 +146,7 @@ if (isCli) {
   });
 } else {
   app.whenReady().then(() => {
+    loadOAuthEnv();
     if (!safeStorage.isEncryptionAvailable()) {
       console.warn(
         '[main] safeStorage is unavailable on this system — token storage will fall back to keytar or, ultimately, plaintext on disk. Configure libsecret/Keychain to fix.'
