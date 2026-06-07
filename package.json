@@ -1,7 +1,7 @@
 {
   "name": "mailvault",
   "productName": "MailVault",
-  "version": "0.1.2",
+  "version": "0.1.8",
   "description": "MailVault — an intelligent email organization and cleanup desktop app for Gmail and Outlook.",
   "main": "dist-electron/main.js",
   "author": "MailVault",
@@ -22,8 +22,14 @@
     "cli": "npm run build && electron dist-electron/main.js --cli",
     "cli:fast": "vite build --mode development && electron dist-electron/main.js --cli",
     "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
+    "test:ui": "vitest run src/test/ui",
+    "test:backend": "vitest run src/test/backend",
+    "test:cli": "npm run cli:fast -- --test=user",
+    "test:all": "npm run test && npm run test:cli",
+    "test:watch": "vitest",
     "rebuild": "electron-builder install-app-deps",
-    "postinstall": "node scripts/patch-electron-macos-brand.js; electron-builder install-app-deps 2>/dev/null || true",
+    "postinstall": "node scripts/patch-electron-macos-brand.js; node scripts/ensure-local-routing.js; electron-builder install-app-deps 2>/dev/null || true",
     "gen-icons": "bash scripts/generate-icons.sh",
     "package": "npm run build && electron-builder",
     "package:mac": "npm run build && electron-builder --mac --arm64 --x64",
@@ -47,6 +53,9 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.7.5",
@@ -56,18 +65,21 @@
     "@typescript-eslint/eslint-plugin": "^8.8.1",
     "@typescript-eslint/parser": "^8.8.1",
     "@vitejs/plugin-react": "^4.3.2",
+    "@vitest/coverage-v8": "^4.1.8",
     "autoprefixer": "^10.4.20",
     "electron": "^33.0.2",
     "electron-builder": "^25.1.8",
     "eslint": "^8.57.1",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.12",
+    "jsdom": "^27.0.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.3",
     "vite": "^5.4.9",
     "vite-plugin-electron": "^0.28.8",
-    "vite-plugin-electron-renderer": "^0.14.6"
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^3.2.6"
   },
   "build": {
     "appId": "com.mailvault.app",
@@ -84,9 +96,19 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      ".env",
+      ".env.example"
     ],
     "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
+      },
+      {
+        "from": ".env.example",
+        "to": ".env.example"
+      },
       {
         "from": "assets",
         "to": "assets",
