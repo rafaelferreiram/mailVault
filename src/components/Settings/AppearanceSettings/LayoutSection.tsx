@@ -4,15 +4,6 @@ import type { LayoutTemplate } from '@shared/types';
 import { LayoutCard } from './LayoutCard';
 import { LAYOUT_OPTIONS } from './LayoutDiagrams';
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <header className="appearance-section-header">
-      <div className="label-mono">{title}</div>
-      <p>{subtitle}</p>
-    </header>
-  );
-}
-
 export function LayoutSection() {
   const template = usePrefsStore((s) => s.prefs.layout.template);
   const setLayoutTemplate = usePrefsStore((s) => s.setLayoutTemplate);
@@ -28,10 +19,6 @@ export function LayoutSection() {
 
   return (
     <div>
-      <SectionHeader
-        title="Layout template"
-        subtitle="Choose how MailVault arranges its panels. Changes apply instantly — try each one."
-      />
       <div className="layout-card-grid">
         {LAYOUT_OPTIONS.map((opt) => (
           <LayoutCard

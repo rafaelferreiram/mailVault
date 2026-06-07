@@ -14,15 +14,6 @@ import type {
 import { ControlBlock, IosToggle, RadioPills, ReadingPaneIcon } from './controls';
 import { LivePreviewPanel } from './email-preview/LivePreviewPanel';
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <header className="appearance-section-header">
-      <div className="label-mono">{title}</div>
-      <p>{subtitle}</p>
-    </header>
-  );
-}
-
 export function EmailViewSection() {
   const ev = usePrefsStore((s) => s.prefs.emailView);
   const patch = usePrefsStore((s) => s.patchEmailView);
@@ -31,10 +22,6 @@ export function EmailViewSection() {
 
   return (
     <div>
-      <SectionHeader
-        title="Email view"
-        subtitle="Configure how your email list and reading pane appear. All changes preview live on the right."
-      />
       <div className="email-view-section">
         <div className="email-view-controls">
           <ControlBlock label="Reading pane">

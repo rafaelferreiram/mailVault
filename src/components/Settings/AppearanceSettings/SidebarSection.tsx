@@ -22,10 +22,6 @@ export function SidebarSection() {
 
   return (
     <div>
-      <header className="appearance-section-header">
-        <div className="label-mono">Sidebar</div>
-        <p>Navigation rail position and which chrome panels stay visible.</p>
-      </header>
       <div className="panel p-4 space-y-3 max-w-lg mb-4">
         <div className="label-mono text-[10px]">Sidebar position</div>
         <div className="grid grid-cols-3 gap-2">

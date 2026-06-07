@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useUIStore } from '@/stores/uiStore';
+import { SettingsCollapsibleSection } from './SettingsCollapsibleSection';
 
 export function SettingsGeneral({ onSaved }: { onSaved?: () => void }) {
   const showToast = useUIStore((s) => s.showToast);
@@ -23,9 +24,12 @@ export function SettingsGeneral({ onSaved }: { onSaved?: () => void }) {
 
   return (
     <>
-      <div className="panel p-4 space-y-3">
-        <div className="label-mono">Deletion behavior</div>
-        <div className="grid grid-cols-2 gap-2">
+      <SettingsCollapsibleSection
+        id="general-deletion"
+        title="Deletion behavior"
+        subtitle="Choose whether deleted mail goes to Trash or is erased permanently."
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <ChoiceCard
             active={deletionMode === 'trash'}
             onClick={() => setDeletionMode('trash')}
@@ -40,10 +44,13 @@ export function SettingsGeneral({ onSaved }: { onSaved?: () => void }) {
             desc="Bypasses Trash. Cannot be recovered. No undo."
           />
         </div>
-      </div>
+      </SettingsCollapsibleSection>
 
-      <div className="panel p-4 space-y-3">
-        <div className="label-mono">Sync limits</div>
+      <SettingsCollapsibleSection
+        id="general-sync-limits"
+        title="Sync limits"
+        subtitle="Caps how much mail a full analysis can fetch at once."
+      >
         <div>
           <label className="label-mono mb-1.5 block">Max messages per full sync</label>
           <input
@@ -59,18 +66,21 @@ export function SettingsGeneral({ onSaved }: { onSaved?: () => void }) {
             Used on the Analyze page. Live sync polls the latest Inbox + Junk mail separately.
           </p>
         </div>
-      </div>
+      </SettingsCollapsibleSection>
 
-      <div className="panel p-4">
-        <div className="label-mono mb-2">Security</div>
+      <SettingsCollapsibleSection
+        id="general-security"
+        title="Security"
+        subtitle="How MailVault stores credentials and talks to providers."
+      >
         <ul className="text-[12px] space-y-1 text-fg-muted">
           <li>· OAuth tokens stored in the OS keychain</li>
           <li>· No backend — API calls go directly to Google / Microsoft</li>
           <li>· Renderer is sandboxed; only main process touches tokens</li>
         </ul>
-      </div>
+      </SettingsCollapsibleSection>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end pt-1">
         <Button variant="primary" iconLeft={<Save className="w-3 h-3" />} onClick={onSave}>
           Save general settings
         </Button>

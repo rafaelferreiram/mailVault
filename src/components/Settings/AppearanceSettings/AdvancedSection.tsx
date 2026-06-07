@@ -14,10 +14,6 @@ export function AdvancedSection() {
 
   return (
     <div>
-      <header className="appearance-section-header">
-        <div className="label-mono">Advanced</div>
-        <p>Interface style presets, custom CSS injection, and reset options.</p>
-      </header>
       <div className="mb-6 max-w-2xl">
         <div className="label-mono text-[10px] mb-2">Interface style</div>
         <StyleCardGrid selected={style} onSelect={(s) => setStyle(s as StyleName)} />

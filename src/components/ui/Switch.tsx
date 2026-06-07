@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 
+/** iOS Settings–style switch track and knob. */
 export function Switch({
   checked,
   onChange,
@@ -13,9 +14,16 @@ export function Switch({
   size?: 'sm' | 'md';
   'aria-label'?: string;
 }) {
-  const w = size === 'sm' ? 'w-8 h-[18px]' : 'w-10 h-[22px]';
-  const knob = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
-  const onX = size === 'sm' ? 'translate-x-[14px]' : 'translate-x-[18px]';
+  const track =
+    size === 'sm'
+      ? 'w-[42px] h-[26px]'
+      : 'w-[51px] h-[31px]';
+  const knob =
+    size === 'sm'
+      ? 'w-[22px] h-[22px] top-[2px]'
+      : 'w-[27px] h-[27px] top-[2px]';
+  const knobOn =
+    size === 'sm' ? 'translate-x-[18px]' : 'translate-x-[22px]';
 
   return (
     <button
@@ -26,19 +34,19 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={clsx(
-        'relative rounded-full border transition-all duration-200 shrink-0',
-        w,
+        'relative inline-flex shrink-0 rounded-full transition-colors duration-200 ease-in-out',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/40',
+        track,
         disabled && 'opacity-40 cursor-not-allowed',
-        checked
-          ? 'bg-accent/25 border-accent/60 shadow-[0_0_12px_rgb(var(--color-accent)/0.25)]'
-          : 'bg-bg-inset border-border hover:border-border-strong'
+        checked ? 'bg-[#34C759]' : 'bg-[rgb(120_120_128/0.32)]'
       )}
     >
       <span
         className={clsx(
-          'absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-200 shadow-sm',
+          'absolute left-0 rounded-full bg-white transition-transform duration-200 ease-in-out',
+          'shadow-[0_3px_8px_rgba(0,0,0,0.15),0_3px_1px_rgba(0,0,0,0.06)]',
           knob,
-          checked ? `${onX} bg-accent` : 'translate-x-0.5 bg-fg-muted'
+          checked ? knobOn : 'translate-x-[2px]'
         )}
       />
     </button>
@@ -59,13 +67,13 @@ export function IosToggle({
   return (
     <label
       className={clsx(
-        'flex items-center gap-3 py-2 cursor-pointer group',
+        'flex items-center gap-3 min-h-[44px] py-1 cursor-pointer group',
         label ? 'justify-between' : 'justify-end',
         disabled && 'opacity-50 pointer-events-none'
       )}
     >
       {label ? (
-        <span className="text-[12px] text-fg group-hover:text-fg leading-snug">{label}</span>
+        <span className="text-[13px] text-fg group-hover:text-fg leading-snug pr-2">{label}</span>
       ) : null}
       <Switch checked={checked} onChange={onChange} disabled={disabled} aria-label={label} />
     </label>

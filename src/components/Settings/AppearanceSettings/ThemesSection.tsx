@@ -1,19 +1,10 @@
 import { useRef } from 'react';
-import { usePrefsStore } from '@/stores/prefsStore';
 import type { ThemeName } from '@shared/types';
+import { usePrefsStore } from '@/stores/prefsStore';
 import { ThemeEngine } from '@/lib/themeEngine';
 import { ThemeCard } from './ThemeCard';
 import { DARK_THEMES, LIGHT_THEMES } from './ThemeMiniPreview';
 import { CustomThemeBuilder } from './CustomThemeBuilder';
-
-function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <header className="appearance-section-header">
-      <div className="label-mono">{title}</div>
-      <p>{subtitle}</p>
-    </header>
-  );
-}
 
 export function ThemesSection() {
   const theme = usePrefsStore((s) => s.prefs.appearance.theme);
@@ -44,11 +35,7 @@ export function ThemesSection() {
 
   return (
     <div>
-      <SectionHeader
-        title="Themes"
-        subtitle="Hover to preview on the live app. Click to keep your choice."
-      />
-      <div className="label-mono text-[10px] mb-3 mt-6">Dark themes</div>
+      <div className="label-mono text-[10px] mb-3">Dark themes</div>
       <div className="theme-card-grid mb-6">
         {DARK_THEMES.map((t) => (
           <ThemeCard
