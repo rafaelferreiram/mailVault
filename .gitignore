@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Per-user routing presets (copy from accountRoutingRules.local.example.ts)
+electron/config/accountRoutingRules.local.ts
+
 # OAuth / API keys often copied under alternate names
 *.pem
 *.p12
