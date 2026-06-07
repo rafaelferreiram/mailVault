@@ -4,6 +4,7 @@ import type {
   FetchOptions,
   FolderSuggestion,
   LogEntry,
+  SenderGroup,
   SyncLiveStats,
   SyncProgressEvent,
   SyncStage,
@@ -39,6 +40,7 @@ interface PerAccountSync {
   estimatedDurationMs: number | null;
   // Final results (after stage 5)
   messages: EmailMessage[];
+  senderGroups: SenderGroup[];
   suggestions: FolderSuggestion[];
   // Probes for the time range selector
   probes: Partial<Record<TimeRangeKey, ProbeResult>>;
@@ -65,6 +67,7 @@ const empty = (): PerAccountSync => ({
   error: null,
   estimatedDurationMs: null,
   messages: [],
+  senderGroups: [],
   suggestions: [],
   probes: {},
   selectedRange: { key: '30d' },
@@ -304,6 +307,7 @@ if (typeof window !== 'undefined' && window.mailvault) {
       };
       if (evt.result) {
         next.messages = evt.result.messages;
+        next.senderGroups = evt.result.senderGroups ?? [];
         next.suggestions = evt.result.suggestions;
       }
       return { byAccount: { ...s.byAccount, [evt.accountId]: next } };

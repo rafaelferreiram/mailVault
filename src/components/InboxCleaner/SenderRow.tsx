@@ -36,11 +36,15 @@ export function SenderRow({
     const deleteHistorical = confirm(
       `Block ${group.email}?\n\nA filter will auto-delete future emails.\n\nClick OK to also delete the ${formatNumber(group.count)} existing emails. Cancel to only block future emails.`
     );
+    let messageIds = deleteHistorical ? group.messageIds : [];
+    if (deleteHistorical && messageIds.length === 0) {
+      messageIds = await window.mailvault.listMessageIdsBySender(accountId, group.email);
+    }
     const result = await block(accountId, {
       email: group.email,
       name: group.name,
       deleteHistorical,
-      messageIds: deleteHistorical ? group.messageIds : [],
+      messageIds,
     });
     if (result) {
       if (deleteHistorical && result.deletedCount > 0) {

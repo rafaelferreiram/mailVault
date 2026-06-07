@@ -71,6 +71,7 @@ export function resetTestStores() {
         error: null,
         estimatedDurationMs: null,
         messages: [],
+        senderGroups: [],
         suggestions: [],
         probes: { '30d': { count: 500, bytes: 30_000_000 } },
         selectedRange: rangeFromKey('30d'),

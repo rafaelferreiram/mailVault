@@ -4,7 +4,8 @@ import { useAccountsStore } from '@/stores/accountsStore';
 import { useRulesStore } from '@/stores/rulesStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { useUIStore } from '@/stores/uiStore';
-import { groupBySender, suggestRules } from '@/lib/grouping';
+import { suggestRules } from '@/lib/grouping';
+import { resolveSenderGroups } from '@/lib/senderGroups';
 import { PageHeader } from '../PageHeader';
 import { Button } from '../ui/Button';
 import { Skeleton } from '../ui/Skeleton';
@@ -34,7 +35,7 @@ export function Rules() {
 
   const suggestions = useMemo(() => {
     if (!sync) return [];
-    return suggestRules(groupBySender(sync.messages));
+    return suggestRules(resolveSenderGroups(sync.senderGroups, sync.messages));
   }, [sync]);
 
   if (!account) return null;

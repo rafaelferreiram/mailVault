@@ -45,9 +45,12 @@ export function SmartSuggestions() {
       setColor(activeId, folder.id, palette[s.id.length % palette.length]);
 
       const senderEmails = new Set(s.senders.map((sd) => sd.email));
-      const messageIds = sync.messages
+      let messageIds = sync.messages
         .filter((m) => senderEmails.has(m.fromEmail))
         .map((m) => m.id);
+      if (!messageIds.length && s.senders.length === 1) {
+        messageIds = await window.mailvault.listMessageIdsBySender(activeId, s.senders[0]!.email);
+      }
 
       if (messageIds.length) {
         const result = await window.mailvault.moveEmails(activeId, {

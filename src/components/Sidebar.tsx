@@ -56,7 +56,11 @@ export function Sidebar() {
     );
   }, [sidebarItems]);
 
-  const messageCount = sync?.messages.length ?? 0;
+  const messageCount =
+    sync?.stats.emailsFetched ||
+    sync?.senderGroups.reduce((sum, g) => sum + g.count, 0) ||
+    sync?.messages.length ||
+    0;
   const storageBytes = sync?.stats.bytesAccounted ?? 0;
   const { width: sidebarWidth, resizeHandleProps } = useResizableWidth(
     'sidebar',

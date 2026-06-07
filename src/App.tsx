@@ -334,16 +334,36 @@ export default function App() {
             `route-${route}`
           )}
         >
-          {route === 'dashboard' && <Dashboard />}
-          {route === 'suggestions' && <SuggestionFeed />}
-          {route === 'analyze' && <Analyze />}
-          {route === 'senders' && <Senders />}
-          {route === 'mailbox' && <Mailbox />}
-          {route === 'folders' && <Folders />}
-          {route === 'rules' && <Rules />}
-          {route === 'blocked' && <Blocked />}
-          {route === 'settings' && <Settings />}
-          {route === 'notifications' && <NotificationCenter />}
+          <div className={route === 'dashboard' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Dashboard />
+          </div>
+          <div className={route === 'suggestions' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <SuggestionFeed />
+          </div>
+          <div className={route === 'analyze' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Analyze />
+          </div>
+          <div className={route === 'senders' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Senders />
+          </div>
+          <div className={route === 'mailbox' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Mailbox />
+          </div>
+          <div className={route === 'folders' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Folders />
+          </div>
+          <div className={route === 'rules' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Rules />
+          </div>
+          <div className={route === 'blocked' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Blocked />
+          </div>
+          <div className={route === 'settings' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <Settings />
+          </div>
+          <div className={route === 'notifications' ? 'flex flex-1 flex-col min-h-0' : 'hidden'}>
+            <NotificationCenter />
+          </div>
         </main>
       </div>
       <SyncDrawer />

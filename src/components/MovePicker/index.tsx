@@ -56,10 +56,18 @@ export function MovePicker() {
 
   const messageIds = useMemo(() => {
     if (!sync) return [];
-    return sync.messages
+    const fromMessages = sync.messages
       .filter((m) => senderEmails.includes(m.fromEmail))
       .map((m) => m.id);
+    if (fromMessages.length) return fromMessages;
+    return [];
   }, [sync, senderEmails]);
+
+  const resolveMessageIds = async (): Promise<string[]> => {
+    if (messageIds.length) return messageIds;
+    if (!activeId || senderEmails.length !== 1) return [];
+    return window.mailvault.listMessageIdsBySender(activeId, senderEmails[0]!);
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -76,14 +84,16 @@ export function MovePicker() {
   }, [folders, query, activeId]);
 
   const onMove = async (folderId: string, folderName: string) => {
-    if (!activeId || !messageIds.length) return;
+    if (!activeId) return;
+    const ids = messageIds.length ? messageIds : await resolveMessageIds();
+    if (!ids.length) return;
     setWorking(true);
     try {
       const result = await window.mailvault.moveEmails(activeId, {
-        messageIds,
+        messageIds: ids,
         destinationFolderId: folderId,
       });
-      removeMessages(activeId, new Set(messageIds));
+      removeMessages(activeId, new Set(ids));
       pushRecent(activeId, folderId);
       showToast(
         result.failed > 0 ? 'err' : 'ok',

@@ -212,6 +212,7 @@ declare global {
       resolvePendingAction: (id: string, resolution: string) => Promise<{ ok: boolean }>;
       undoLiveAction: (actionLogId: string) => Promise<{ ok: boolean; error?: string }>;
       getDashboard: (scope: string | 'all') => Promise<DashboardSnapshot>;
+      listMessageIdsBySender: (accountId: string, senderEmail: string) => Promise<string[]>;
       onLiveNotification: (cb: (p: unknown) => void) => () => void;
       onLivePending: (cb: (p: unknown) => void) => () => void;
       onLiveBadge: (cb: (p: unknown) => void) => () => void;

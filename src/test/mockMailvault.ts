@@ -157,6 +157,7 @@ export function createMailvaultMock() {
     resolvePendingAction: vi.fn(async () => ({ ok: true })),
     undoLiveAction: vi.fn(async () => ({ ok: true })),
     getDashboard: vi.fn(async () => TEST_DASHBOARD),
+    listMessageIdsBySender: vi.fn(async () => []),
     onLiveNotification: vi.fn(noopOff),
     onLivePending: vi.fn(noopOff),
     onLiveBadge: vi.fn(noopOff),

@@ -55,8 +55,9 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
         loading: false,
         selectedMessageId: result.messages[0]?.id ?? null,
       });
-      if (result.messages[0]) {
-        await get().selectMessage(accountId, result.messages[0].id);
+      const first = result.messages[0];
+      if (first) {
+        void get().selectMessage(accountId, first.id);
       }
     } catch (e) {
       set({ loading: false, error: (e as Error).message, messages: [] });

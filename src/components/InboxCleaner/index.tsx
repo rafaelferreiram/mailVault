@@ -3,7 +3,8 @@ import { Trash2, ArrowRight, Search, ShieldOff, Activity } from 'lucide-react';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { useUIStore } from '@/stores/uiStore';
-import { groupBySender, sortGroups, type SortKey } from '@/lib/grouping';
+import { sortGroups, type SortKey } from '@/lib/grouping';
+import { resolveSenderGroups } from '@/lib/senderGroups';
 import { formatBytes, formatNumber } from '@/lib/format';
 import { PageHeader } from '../PageHeader';
 import { Button } from '../ui/Button';
@@ -43,30 +44,32 @@ export function InboxCleaner() {
     }
   }, [sendersFilterPref, sendersSearchPref, setSendersSearchPref]);
 
-  const messages = sync?.messages ?? [];
+  const groups = useMemo(
+    () => resolveSenderGroups(sync?.senderGroups, sync?.messages ?? []),
+    [sync?.senderGroups, sync?.messages]
+  );
 
-  const filteredMessages = useMemo(() => {
-    let m = messages;
-    if (filter === 'unread') m = m.filter((x) => x.isUnread);
+  const sortedGroups = useMemo(() => {
+    let g = groups;
+    if (filter === 'unread') g = g.filter((x) => x.unreadCount > 0);
     if (filter === 'old') {
       const cutoff = Date.now() - 6 * 30 * 86400_000;
-      m = m.filter((x) => x.receivedAt < cutoff);
+      g = g.filter((x) => x.oldestAt < cutoff);
     }
-    if (filter === 'newsletters') m = m.filter((x) => x.hasListUnsubscribe);
+    if (filter === 'newsletters') g = g.filter((x) => x.isNewsletter || x.hasListUnsubscribe);
     if (search.trim()) {
       const q = search.toLowerCase();
-      m = m.filter(
+      g = g.filter(
         (x) =>
-          x.fromEmail.toLowerCase().includes(q) ||
-          x.fromName.toLowerCase().includes(q) ||
-          x.subject.toLowerCase().includes(q)
+          x.email.toLowerCase().includes(q) ||
+          x.name.toLowerCase().includes(q) ||
+          x.sampleSubjects.some((s) => s.toLowerCase().includes(q))
       );
     }
-    return m;
-  }, [messages, filter, search]);
+    return sortGroups(g, sortKey);
+  }, [groups, filter, search, sortKey]);
 
-  const groups = useMemo(() => groupBySender(filteredMessages), [filteredMessages]);
-  const sortedGroups = useMemo(() => sortGroups(groups, sortKey), [groups, sortKey]);
+  const messages = sync?.messages ?? [];
 
   const expandedGroup = useMemo(
     () => (expanded ? sortedGroups.find((g) => g.email === expanded) : undefined),
@@ -74,8 +77,8 @@ export function InboxCleaner() {
   );
   const expandedMessages = useMemo(() => {
     if (!expanded) return [];
-    return filteredMessages.filter((m) => m.fromEmail === expanded);
-  }, [expanded, filteredMessages]);
+    return messages.filter((m) => m.fromEmail === expanded);
+  }, [expanded, messages]);
 
   const totalSelectedMessages = useMemo(() => {
     let n = 0;
@@ -118,7 +121,7 @@ export function InboxCleaner() {
 
   if (!account) return null;
 
-  if (!sync?.completedAt && !sync?.active && !messages.length) {
+  if (!sync?.completedAt && !sync?.active && groups.length === 0) {
     return (
       <div data-tour="sender-grid" className="flex-1 flex flex-col min-h-0">
         <PageHeader
@@ -269,7 +272,7 @@ export function InboxCleaner() {
                 expanded={expanded === g.email}
                 onToggleSelect={() => toggleSender(g.email)}
                 onToggleExpand={() => toggleExpanded(g.email)}
-                messages={filteredMessages.filter((m) => m.fromEmail === g.email)}
+                messages={messages.filter((m) => m.fromEmail === g.email)}
                 accountId={activeId!}
               />
             ))}
