@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import clsx from 'clsx';
 import {
   ChevronUp,
   ChevronDown,
@@ -11,12 +12,14 @@ import {
   StopCircle,
   CheckCircle2,
   Activity,
+  Timer,
 } from 'lucide-react';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { useUIStore } from '@/stores/uiStore';
 import { usePrefsStore } from '@/stores/prefsStore';
 import { formatBytes, formatDuration, formatNumber, formatTimestampHHMMSS } from '@/lib/format';
+import { estimateRemainingMs, formatEtaEstimate } from '@/lib/syncEta';
 import { StageProgressBar } from '../ui/StageProgressBar';
 
 const STAGE_LABELS: Record<string, string> = {
@@ -37,6 +40,23 @@ export function SyncDrawer() {
   const setRoute = useUIStore((s) => s.setRoute);
 
   const logRef = useRef<HTMLDivElement>(null);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!sync?.active) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [sync?.active]);
+
+  const remainingMs =
+    sync?.active && sync.startedAt && sync.estimatedDurationMs
+      ? estimateRemainingMs({
+          estimatedTotalMs: sync.estimatedDurationMs,
+          startedAt: sync.startedAt,
+          stage: sync.stage,
+        })
+      : null;
+  void tick;
 
   // Auto-scroll log to bottom on new entries.
   useEffect(() => {
@@ -71,13 +91,20 @@ export function SyncDrawer() {
     <div className="h-72 shrink-0 border-t border-border bg-bg-elevated flex flex-col animate-fade-in">
       {/* Drawer header */}
       <div className="h-9 shrink-0 px-3 border-b border-border flex items-center gap-3">
-        <Activity className="w-3 h-3 text-accent" />
+        <Activity className={clsx('w-3 h-3 text-accent', sync.active && 'animate-pulse-soft')} />
         <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-fg">
           Sync Engine
         </div>
-        <div className="text-[10px] font-mono uppercase tracking-widest text-fg-subtle">
+        <div
+          className={clsx(
+            'text-[10px] font-mono uppercase tracking-widest',
+            sync.active ? 'text-accent animate-sync-pulse' : 'text-fg-subtle'
+          )}
+        >
           {sync.active
-            ? `Running · ${formatDuration(elapsed)}`
+            ? `Running · ${formatDuration(elapsed)}${
+                remainingMs != null ? ` · ${formatEtaEstimate(remainingMs)} left` : ''
+              }`
             : completed
             ? `Complete · ${formatDuration(sync.completedAt! - (sync.startedAt ?? sync.completedAt!))}`
             : failed
@@ -135,6 +162,11 @@ export function SyncDrawer() {
                 {Math.round((stage.progress ?? 0) * 100)}%
               </span>
             )}
+            {sync.active && remainingMs != null && (
+              <span className="font-mono text-[10px] text-fg-subtle tabular-nums">
+                ETA {formatEtaEstimate(remainingMs)}
+              </span>
+            )}
             {completed && <CheckCircle2 className="w-3 h-3 text-ok" />}
           </div>
         </div>
@@ -143,6 +175,7 @@ export function SyncDrawer() {
           total={stage?.total ?? 5}
           stageProgress={completed ? 1 : stage?.progress ?? 0}
         />
+        {sync.active && <div className="loading-bar mt-2" aria-hidden><div className="loading-bar__track" /></div>}
       </div>
 
       {/* Body: log + stats sidebar */}
@@ -204,6 +237,14 @@ export function SyncDrawer() {
               value={formatNumber(stats.suggestionsBuilt)}
               accent
             />
+            {sync.active && sync.estimatedDurationMs != null && remainingMs != null && (
+              <StatRow
+                icon={Timer}
+                label="Time remaining"
+                value={formatEtaEstimate(remainingMs)}
+                accent
+              />
+            )}
           </div>
         </div>
       </div>
@@ -244,10 +285,27 @@ function StatRow({
 function CollapsedBar({ onExpand }: { onExpand: () => void }) {
   const activeId = useAccountsStore((s) => s.activeId);
   const sync = useSyncStore((s) => (activeId ? s.byAccount[activeId] : null));
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!sync?.active) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [sync?.active]);
+
   if (!sync?.drawerOpen) return null;
 
   const stage = sync.stage;
   const completed = !!sync.completedAt && !sync.error;
+  const remainingMs =
+    sync.active && sync.startedAt && sync.estimatedDurationMs
+      ? estimateRemainingMs({
+          estimatedTotalMs: sync.estimatedDurationMs,
+          startedAt: sync.startedAt,
+          stage: sync.stage,
+        })
+      : null;
+  void tick;
   const fillPct =
     stage && !completed
       ? ((stage.index - 1 + (stage.progress ?? 0)) / Math.max(stage.total, 1)) * 100
@@ -277,6 +335,7 @@ function CollapsedBar({ onExpand }: { onExpand: () => void }) {
       </div>
       <span className="font-mono text-[10px] text-accent tabular-nums">
         {Math.round(fillPct)}%
+        {remainingMs != null ? ` · ${formatEtaEstimate(remainingMs)}` : ''}
       </span>
       <ChevronUp className="w-3.5 h-3.5 text-fg-subtle" />
     </div>

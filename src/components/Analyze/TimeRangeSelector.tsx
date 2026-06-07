@@ -3,9 +3,15 @@ import clsx from 'clsx';
 import { Calendar } from 'lucide-react';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useSyncStore } from '@/stores/syncStore';
-import { RANGES, rangeFromKey } from '@/lib/timeRange';
+import { RANGES, rangeFromKey, AVG_MSG_BYTES } from '@/lib/timeRange';
 import type { TimeRangeKey } from '@shared/types';
-import { formatNumber } from '@/lib/format';
+import { formatBytes, formatNumber } from '@/lib/format';
+import {
+  averageProbeLatency,
+  connectionLabel,
+  estimateSyncDurationMs,
+  formatEtaEstimate,
+} from '@/lib/syncEta';
 import { Skeleton } from '../ui/Skeleton';
 
 export function TimeRangeSelector() {
@@ -22,6 +28,7 @@ export function TimeRangeSelector() {
   }, [activeId, probeAll]);
 
   const selectedKey = sync?.selectedRange.key ?? '30d';
+  const avgProbeMs = averageProbeLatency(sync?.probes ?? {});
 
   const onSelect = (k: TimeRangeKey) => {
     if (!activeId) return;
@@ -44,7 +51,8 @@ export function TimeRangeSelector() {
       </div>
 
       {/* Timeline-bar selector */}
-      <div className="flex items-stretch border border-border bg-bg-elevated">
+      <div className="scroll-row -mx-1 px-1">
+        <div className="scroll-row__inner items-stretch border border-border bg-bg-elevated min-w-full">
         {RANGES.map((r, i) => {
           const probe = sync?.probes[r.key];
           const selected = selectedKey === r.key;
@@ -53,7 +61,7 @@ export function TimeRangeSelector() {
               key={r.key}
               onClick={() => onSelect(r.key)}
               className={clsx(
-                'flex-1 px-2 py-3 text-left transition-colors relative group min-w-0',
+                'flex-1 min-w-[100px] px-2 py-3 text-left transition-colors relative group',
                 i < RANGES.length - 1 && 'border-r border-border-subtle',
                 selected
                   ? 'bg-accent/10 text-accent shadow-[inset_0_2px_0_0_theme(colors.accent.DEFAULT)]'
@@ -64,15 +72,39 @@ export function TimeRangeSelector() {
                 {r.short}
               </div>
               <div className="text-[12px] mt-0.5 font-medium">{r.label}</div>
-              <div className="text-[10px] font-mono mt-1.5 tabular-nums">
+              <div className="text-[10px] font-mono mt-1.5 tabular-nums space-y-0.5">
                 {probe?.loading || probe === undefined ? (
-                  <Skeleton className="h-3 w-12" />
-                ) : probe.count > 0 ? (
-                  <span className={selected ? 'text-accent' : 'text-fg-subtle'}>
-                    ~{formatNumber(probe.count, { compact: true })}
-                  </span>
+                  <>
+                    <Skeleton className="h-3 w-12" />
+                    <Skeleton className="h-3 w-14" />
+                    <Skeleton className="h-3 w-10" />
+                  </>
                 ) : (
-                  <span className="text-fg-subtle">—</span>
+                  <>
+                    <div className={selected ? 'text-accent' : 'text-fg-subtle'}>
+                      {probe.count > 0 ? (
+                        <>~{formatNumber(probe.count, { compact: true })} emails</>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </div>
+                    <div className={selected ? 'text-accent/80' : 'text-fg-subtle'}>
+                      {probe.count > 0 ? (
+                        <>~{formatBytes(probe.bytes ?? probe.count * AVG_MSG_BYTES, { compact: true })}</>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </div>
+                    <div className={selected ? 'text-accent/70' : 'text-fg-dim'}>
+                      {formatEtaEstimate(
+                        estimateSyncDurationMs({
+                          rangeKey: r.key,
+                          emailCount: probe.count,
+                          avgProbeMs,
+                        })
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </button>
@@ -82,7 +114,7 @@ export function TimeRangeSelector() {
         {/* Custom range slot */}
         <button
           disabled
-          className="w-[120px] px-2 py-3 text-left text-fg-subtle border-l border-border-subtle opacity-40 cursor-not-allowed"
+          className="w-[120px] shrink-0 px-2 py-3 text-left text-fg-subtle border-l border-border-subtle opacity-40 cursor-not-allowed"
           title="Custom date range — coming soon"
         >
           <div className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1">
@@ -90,9 +122,19 @@ export function TimeRangeSelector() {
             CUSTOM
           </div>
           <div className="text-[12px] mt-0.5">Date range</div>
-          <div className="text-[10px] font-mono mt-1.5">—</div>
+          <div className="text-[10px] font-mono mt-1.5 space-y-0.5">
+            <div>—</div>
+            <div>—</div>
+            <div>—</div>
+          </div>
         </button>
+        </div>
       </div>
+      {avgProbeMs != null && (
+        <div className="text-[10px] font-mono text-fg-subtle">
+          Sync ETA adjusted for {connectionLabel(avgProbeMs)} (probe {Math.round(avgProbeMs)}ms)
+        </div>
+      )}
     </div>
   );
 }

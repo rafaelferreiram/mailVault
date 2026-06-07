@@ -1,4 +1,5 @@
-import { Play, Mail, Users, HardDrive, Rocket, Activity } from 'lucide-react';
+import { Play, Mail, Users, HardDrive, Rocket, Activity, Loader2, Clock } from 'lucide-react';
+import clsx from 'clsx';
 import { useAccountsStore } from '@/stores/accountsStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -8,6 +9,12 @@ import { Button } from '../ui/Button';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { formatBytes, formatNumber } from '@/lib/format';
 import { rangeFromKey, RANGES, AVG_MSG_BYTES } from '@/lib/timeRange';
+import {
+  averageProbeLatency,
+  connectionLabel,
+  estimateSyncDurationMs,
+  formatEtaEstimate,
+} from '@/lib/syncEta';
 
 export function Analyze() {
   const activeId = useAccountsStore((s) => s.activeId);
@@ -15,6 +22,7 @@ export function Analyze() {
   const sync = useSyncStore((s) => (activeId ? s.byAccount[activeId] : null));
   const start = useSyncStore((s) => s.start);
   const setRoute = useUIStore((s) => s.setRoute);
+  const showToast = useUIStore((s) => s.showToast);
 
   if (!account || !activeId) return null;
 
@@ -22,12 +30,27 @@ export function Analyze() {
   const probe = sync?.probes[selected.key];
   const count = probe?.count ?? 0;
   const bytes = probe?.bytes ?? count * AVG_MSG_BYTES;
+  const probeReady = !!probe && !probe.loading;
+  const avgProbeMs = averageProbeLatency(sync?.probes ?? {});
+  const etaMs = estimateSyncDurationMs({
+    rangeKey: selected.key,
+    emailCount: count,
+    avgProbeMs,
+  });
 
   const canStart = !!account && !sync?.active;
 
-  const onStart = () => {
+  const onStart = async () => {
     if (!canStart) return;
-    void start(activeId, { range: selected, maxMessages: 10_000 });
+    try {
+      await start(activeId, { range: selected, maxMessages: 10_000 });
+      const err = useSyncStore.getState().byAccount[activeId]?.error;
+      if (err) {
+        showToast('err', err.replace(/^Error invoking remote method 'sync:start': Error: /, ''));
+      }
+    } catch (e) {
+      showToast('err', (e as Error).message);
+    }
   };
 
   const completed = !!sync?.completedAt && !sync?.error;
@@ -40,25 +63,53 @@ export function Analyze() {
         badge={account.provider === 'google' ? 'GMAIL' : 'OUTLOOK'}
       />
 
-      <div className="p-6 space-y-6 max-w-[1240px]">
+      <div className="page-content page-content--narrow space-y-6">
         {/* Time range selector */}
-        <div className="panel p-5">
+        <div className="panel p-4 sm:p-5">
           <TimeRangeSelector />
 
           {/* Estimate readout */}
-          <div className="mt-4 p-3 panel-inset flex items-center gap-6">
+          <div className="mt-4 p-3 panel-inset flex flex-wrap items-center gap-x-4 gap-y-3">
             <Stat
               icon={Mail}
               label="Emails"
-              value={count > 0 ? `~${formatNumber(count)}` : probe?.loading ? '—' : '—'}
+              value={
+                probe?.loading
+                  ? '…'
+                  : probeReady && count > 0
+                    ? `~${formatNumber(count)}`
+                    : probeReady
+                      ? '0'
+                      : '—'
+              }
             />
-            <span className="text-fg-dim font-mono">·</span>
+            <span className="hidden sm:inline text-fg-dim font-mono">·</span>
             <Stat
               icon={HardDrive}
               label="Estimated storage"
-              value={count > 0 ? `~${formatBytes(bytes)}` : '—'}
+              value={
+                probe?.loading
+                  ? '…'
+                  : probeReady && count > 0
+                    ? `~${formatBytes(bytes)}`
+                    : probeReady
+                      ? formatBytes(0)
+                      : '—'
+              }
             />
-            <span className="text-fg-dim font-mono">·</span>
+            <span className="hidden sm:inline text-fg-dim font-mono">·</span>
+            <Stat
+              icon={Clock}
+              label="Est. sync time"
+              value={
+                probe?.loading
+                  ? '…'
+                  : probeReady
+                    ? formatEtaEstimate(etaMs)
+                    : '—'
+              }
+            />
+            <span className="hidden sm:inline text-fg-dim font-mono">·</span>
             <Stat
               icon={Users}
               label="Senders"
@@ -66,33 +117,43 @@ export function Analyze() {
               valueClass="text-fg-subtle font-normal italic text-[11px]"
             />
 
-            <div className="flex-1" />
+            <div className="w-full sm:flex-1" />
 
-            {completed && (
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {completed && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setRoute('senders')}
+                  iconLeft={<Activity className="w-3.5 h-3.5" />}
+                >
+                  View Last Results
+                </Button>
+              )}
+
               <Button
-                variant="secondary"
-                onClick={() => setRoute('senders')}
-                iconLeft={<Activity className="w-3.5 h-3.5" />}
+                variant="primary"
+                size="lg"
+                iconLeft={
+                  sync?.active ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )
+                }
+                onClick={onStart}
+                disabled={!canStart}
+                className={clsx('w-full sm:w-auto', sync?.active && 'sync-active-glow')}
               >
-                View Last Results
+                {sync?.active ? 'Sync running…' : 'Start Analysis'}
               </Button>
-            )}
-
-            <Button
-              variant="primary"
-              size="lg"
-              iconLeft={<Play className="w-4 h-4" />}
-              onClick={onStart}
-              disabled={!canStart}
-            >
-              {sync?.active ? 'Sync running…' : 'Start Analysis'}
-            </Button>
+            </div>
           </div>
 
           {/* Reasoning footer */}
           <div className="mt-3 text-[10px] font-mono uppercase tracking-widest text-fg-subtle">
-            Estimates use the provider's count API · Storage is a 60 KB / message heuristic ·
-            Per-message size is exact only after sync
+            Estimates use the provider count API · Storage uses a 60 KB / message heuristic · Sync
+            ETA scales with range, volume
+            {avgProbeMs != null ? ` and ${connectionLabel(avgProbeMs)}` : ''}
           </div>
         </div>
 
@@ -100,9 +161,9 @@ export function Analyze() {
         <LiveSyncControl variant="card" />
 
         {/* What happens during sync */}
-        <div className="panel p-5">
+        <div className="panel p-4 sm:p-5">
           <div className="label-mono mb-3">What runs during sync</div>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
             {[
               { n: 1, label: 'Fetch metadata', desc: 'List + metadata-only fetch via API' },
               { n: 2, label: 'Group by sender', desc: 'Bucket every message by from address' },
@@ -120,7 +181,7 @@ export function Analyze() {
         </div>
 
         {/* Help */}
-        <div className="panel p-5">
+        <div className="panel p-4 sm:p-5">
           <div className="label-mono mb-2 flex items-center gap-2">
             <Rocket className="w-3 h-3" />
             <span>Tips</span>

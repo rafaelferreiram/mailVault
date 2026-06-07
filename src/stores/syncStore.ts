@@ -11,6 +11,18 @@ import type {
   TimeRangeKey,
 } from '@shared/types';
 import { RANGES, rangeFromKey } from '@/lib/timeRange';
+import {
+  averageProbeLatency,
+  estimateSyncDurationMs,
+} from '@/lib/syncEta';
+
+interface ProbeResult {
+  count: number;
+  bytes: number;
+  loading?: boolean;
+  /** Round-trip ms for the provider count probe (connection speed signal). */
+  probeMs?: number;
+}
 
 interface PerAccountSync {
   syncId: string | null;
@@ -23,11 +35,13 @@ interface PerAccountSync {
   startedAt: number | null;
   completedAt: number | null;
   error: string | null;
+  /** Pre-sync ETA used for remaining-time display in the drawer. */
+  estimatedDurationMs: number | null;
   // Final results (after stage 5)
   messages: EmailMessage[];
   suggestions: FolderSuggestion[];
   // Probes for the time range selector
-  probes: Partial<Record<TimeRangeKey, { count: number; bytes: number; loading?: boolean }>>;
+  probes: Partial<Record<TimeRangeKey, ProbeResult>>;
   // Last selected range
   selectedRange: TimeRange;
 }
@@ -49,6 +63,7 @@ const empty = (): PerAccountSync => ({
   startedAt: null,
   completedAt: null,
   error: null,
+  estimatedDurationMs: null,
   messages: [],
   suggestions: [],
   probes: {},
@@ -110,7 +125,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       };
     });
     try {
+      const t0 = performance.now();
       const count = await window.mailvault.probeRange(accountId, range);
+      const probeMs = Math.round(performance.now() - t0);
       const bytes = count * 60 * 1024; // 60 KB heuristic
       set((s) => {
         const cur = s.byAccount[accountId] ?? empty();
@@ -119,7 +136,10 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             ...s.byAccount,
             [accountId]: {
               ...cur,
-              probes: { ...cur.probes, [range.key]: { count, bytes, loading: false } },
+              probes: {
+                ...cur.probes,
+                [range.key]: { count, bytes, loading: false, probeMs },
+              },
             },
           },
         };
@@ -147,6 +167,15 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
 
   start: async (accountId, opts) => {
+    const curBefore = get().byAccount[accountId] ?? empty();
+    const rangeKey = opts.range?.key ?? curBefore.selectedRange.key;
+    const probe = curBefore.probes[rangeKey];
+    const estimatedDurationMs = estimateSyncDurationMs({
+      rangeKey,
+      emailCount: probe?.count,
+      avgProbeMs: averageProbeLatency(curBefore.probes),
+    });
+
     set((s) => {
       const cur = s.byAccount[accountId] ?? empty();
       return {
@@ -163,6 +192,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             startedAt: Date.now(),
             completedAt: null,
             error: null,
+            estimatedDurationMs,
             messages: [],
             suggestions: [],
           },
