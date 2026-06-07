@@ -17,6 +17,9 @@ export interface UserRow {
   id: string;
   username: string;
   email: string;
+  displayName: string | null;
+  avatarEmoji: string | null;
+  avatarImage: string | null;
   /** Never returned outside this module. */
   password?: string;
   createdAt: number;
@@ -88,7 +91,22 @@ export function init(dbPath: string = defaultDbPath()): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_linked_user ON linked_accounts(user_id);
   `);
+  migrateUsers(db);
   return db;
+}
+
+function migrateUsers(database: Database.Database) {
+  const cols = database.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  if (!names.has('display_name')) {
+    database.exec('ALTER TABLE users ADD COLUMN display_name TEXT');
+  }
+  if (!names.has('avatar_emoji')) {
+    database.exec('ALTER TABLE users ADD COLUMN avatar_emoji TEXT');
+  }
+  if (!names.has('avatar_image')) {
+    database.exec('ALTER TABLE users ADD COLUMN avatar_image TEXT');
+  }
 }
 
 export function close() {
@@ -163,18 +181,12 @@ export async function register(input: {
 
   require_db()
     .prepare(
-      `INSERT INTO users (id, username, email, password, created_at, last_login)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO users (id, username, email, password, created_at, last_login, display_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(id, username, email, hash, now, now);
+    .run(id, username, email, hash, now, now, username);
 
-  return {
-    id,
-    username,
-    email,
-    createdAt: now,
-    lastLogin: now,
-  };
+  return getUserById(id)!;
 }
 
 export async function login(
@@ -197,23 +209,128 @@ export async function login(
   const now = Date.now();
   require_db().prepare('UPDATE users SET last_login = ? WHERE id = ?').run(now, row.id);
 
+  return getUserById(row.id)!;
+}
+
+function mapUserRow(row: {
+  id: string;
+  username: string;
+  email: string;
+  display_name?: string | null;
+  avatar_emoji?: string | null;
+  avatar_image?: string | null;
+  createdAt: number;
+  lastLogin: number | null;
+}): UserRow {
   return {
     id: row.id,
     username: row.username,
     email: row.email,
+    displayName: row.display_name ?? null,
+    avatarEmoji: row.avatar_emoji ?? null,
+    avatarImage: row.avatar_image ?? null,
     createdAt: row.createdAt,
-    lastLogin: now,
+    lastLogin: row.lastLogin ?? null,
   };
 }
 
 export function getUserById(id: string): UserRow | null {
   const row = require_db()
     .prepare(
-      `SELECT id, username, email, created_at AS createdAt, last_login AS lastLogin
+      `SELECT id, username, email, display_name, avatar_emoji, avatar_image,
+              created_at AS createdAt, last_login AS lastLogin
        FROM users WHERE id = ?`
     )
-    .get(id) as UserRow | undefined;
-  return row ?? null;
+    .get(id) as Parameters<typeof mapUserRow>[0] | undefined;
+  return row ? mapUserRow(row) : null;
+}
+
+const MAX_AVATAR_BYTES = 256 * 1024;
+
+export function updateUserProfile(
+  userId: string,
+  patch: {
+    displayName?: string;
+    email?: string;
+    avatarEmoji?: string | null;
+    avatarImage?: string | null;
+  }
+): UserRow {
+  const user = getUserById(userId);
+  if (!user) throw new ValidationError('user', 'User not found.');
+
+  const next: UserRow = { ...user };
+
+  if (patch.displayName !== undefined) {
+    const name = patch.displayName.trim();
+    if (name.length < 1 || name.length > 48) {
+      throw new ValidationError('displayName', 'Display name must be 1–48 characters.');
+    }
+    next.displayName = name;
+  }
+
+  if (patch.email !== undefined) {
+    const email = patch.email.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      throw new ValidationError('email', 'Enter a valid email address.');
+    }
+    const existing = require_db()
+      .prepare('SELECT id FROM users WHERE email = ? AND id != ?')
+      .get(email, userId);
+    if (existing) {
+      throw new ValidationError('email', 'That email is already used by another account.');
+    }
+    next.email = email;
+  }
+
+  if (patch.avatarEmoji !== undefined) {
+    if (patch.avatarEmoji === null || patch.avatarEmoji === '') {
+      next.avatarEmoji = null;
+    } else {
+      const emoji = patch.avatarEmoji.trim();
+      if (emoji.length > 8) {
+        throw new ValidationError('avatarEmoji', 'Pick a single emoji.');
+      }
+      next.avatarEmoji = emoji;
+      next.avatarImage = null;
+    }
+  }
+
+  if (patch.avatarImage !== undefined) {
+    if (patch.avatarImage === null || patch.avatarImage === '') {
+      next.avatarImage = null;
+    } else {
+      if (!patch.avatarImage.startsWith('data:image/')) {
+        throw new ValidationError('avatarImage', 'Invalid image format.');
+      }
+      if (patch.avatarImage.length > MAX_AVATAR_BYTES) {
+        throw new ValidationError('avatarImage', 'Image is too large (max 256 KB).');
+      }
+      next.avatarImage = patch.avatarImage;
+      next.avatarEmoji = null;
+    }
+  }
+
+  require_db()
+    .prepare(
+      `UPDATE users SET display_name = ?, email = ?, avatar_emoji = ?, avatar_image = ? WHERE id = ?`
+    )
+    .run(next.displayName, next.email, next.avatarEmoji, next.avatarImage, userId);
+
+  return getUserById(userId)!;
+}
+
+export function updateLinkedAccountLabel(
+  userId: string,
+  keychainKey: string,
+  displayName: string
+) {
+  const trimmed = displayName.trim().slice(0, 64);
+  require_db()
+    .prepare(
+      `UPDATE linked_accounts SET display_name = ? WHERE user_id = ? AND keychain_key = ?`
+    )
+    .run(trimmed || null, userId, keychainKey);
 }
 
 export async function changePassword(

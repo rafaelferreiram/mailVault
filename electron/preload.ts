@@ -107,6 +107,12 @@ const api = {
   userHasAny: () => ipcRenderer.invoke(IPC.UserHasAny),
   userChangePassword: (payload: { currentPassword: string; newPassword: string }) =>
     ipcRenderer.invoke(IPC.UserChangePassword, payload),
+  userUpdateProfile: (payload: {
+    displayName?: string;
+    email?: string;
+    avatarEmoji?: string | null;
+    avatarImage?: string | null;
+  }) => ipcRenderer.invoke(IPC.UserUpdateProfile, payload),
   onUserChanged: (cb: (p: unknown) => void) => {
     const sub = (_e: unknown, p: unknown) => cb(p);
     ipcRenderer.on(IPC.UserChanged, sub);
@@ -118,6 +124,8 @@ const api = {
   authReauth: (accountId: string) => ipcRenderer.invoke(IPC.AuthReauth, accountId),
   authLogout: (accountId: string) => ipcRenderer.invoke(IPC.AuthLogout, accountId),
   listAccounts: () => ipcRenderer.invoke(IPC.AuthListAccounts),
+  authUpdateAccount: (accountId: string, patch: { name?: string }) =>
+    ipcRenderer.invoke(IPC.AuthUpdateAccount, accountId, patch),
   onAuthChanged: (cb: (p: unknown) => void) => {
     const sub = (_e: unknown, p: unknown) => cb(p);
     ipcRenderer.on(IPC.AuthChanged, sub);
@@ -190,6 +198,9 @@ const api = {
   ) => ipcRenderer.invoke(IPC.EmailsListByFolder, accountId, payload),
   getEmailPreview: (accountId: string, messageId: string) =>
     ipcRenderer.invoke(IPC.EmailsGetPreview, accountId, messageId),
+  scanJobOffers: (accountId: string) => ipcRenderer.invoke(IPC.EmailsScanJobOffers, accountId),
+  organizeJobOffers: (accountId: string, payload?: { messageIds?: string[] }) =>
+    ipcRenderer.invoke(IPC.EmailsOrganizeJobOffers, accountId, payload),
 
   // Rules
   listRules: (accountId: string) => ipcRenderer.invoke(IPC.RulesList, accountId),

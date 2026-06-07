@@ -53,6 +53,12 @@ declare global {
         currentPassword: string;
         newPassword: string;
       }) => Promise<{ ok: true } | { ok: false; error: AuthError }>;
+      userUpdateProfile: (payload: {
+        displayName?: string;
+        email?: string;
+        avatarEmoji?: string | null;
+        avatarImage?: string | null;
+      }) => Promise<{ ok: true; user: User } | { ok: false; error: AuthError }>;
       onUserChanged: (cb: (p: { user: User | null }) => void) => () => void;
 
       // Email-provider auth
@@ -70,6 +76,10 @@ declare global {
       >;
       authLogout: (accountId: string) => Promise<boolean>;
       listAccounts: () => Promise<AccountProfile[]>;
+      authUpdateAccount: (
+        accountId: string,
+        patch: { name?: string }
+      ) => Promise<AccountProfile | null>;
       onAuthChanged: (
         cb: (p: { type: 'needs-reauth' | 'removed'; accountId: string; code?: string; message?: string }) => void
       ) => () => void;
@@ -127,6 +137,11 @@ declare global {
         payload: { folderId: string; limit?: number; offset?: number }
       ) => Promise<{ messages: EmailMessage[]; source: 'cache' | 'live' }>;
       getEmailPreview: (accountId: string, messageId: string) => Promise<EmailPreview | null>;
+      scanJobOffers: (accountId: string) => Promise<import('@shared/jobOfferDetection').JobOfferScanResult>;
+      organizeJobOffers: (
+        accountId: string,
+        payload?: { messageIds?: string[] }
+      ) => Promise<import('@shared/jobOfferDetection').JobOfferOrganizeResult>;
 
       listRules: (accountId: string) => Promise<MailRule[]>;
       createRule: (accountId: string, rule: MailRule) => Promise<MailRule>;

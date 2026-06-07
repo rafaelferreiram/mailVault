@@ -15,6 +15,12 @@ interface UserState {
   login: (input: { identifier: string; password: string }) => Promise<boolean>;
   logout: () => Promise<void>;
   changePassword: (current: string, next: string) => Promise<boolean>;
+  updateProfile: (patch: {
+    displayName?: string;
+    email?: string;
+    avatarEmoji?: string | null;
+    avatarImage?: string | null;
+  }) => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -85,6 +91,21 @@ export const useUserStore = create<UserState>((set, get) => ({
       return false;
     }
     set({ busy: false });
+    return true;
+  },
+
+  updateProfile: async (patch) => {
+    set({ busy: true, error: null, errorField: null });
+    const result = await window.mailvault.userUpdateProfile(patch);
+    if (!result.ok) {
+      set({
+        busy: false,
+        error: result.error.message,
+        errorField: parseField(result.error.code),
+      });
+      return false;
+    }
+    set({ user: result.user, busy: false });
     return true;
   },
 

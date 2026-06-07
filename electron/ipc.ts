@@ -16,6 +16,13 @@ import { GmailClient } from './services/gmail.js';
 import { GraphClient } from './services/microsoft.js';
 import { ensureAccountRoutingRules } from './services/routingRules.js';
 import { startSync, cancelSync } from './services/syncEngine.js';
+import {
+  assertOAuthForAccount,
+  loadOAuthEnv,
+  oauthEnvStatus,
+  resolveUserEnvPath,
+  seedUserEnvIfMissing,
+} from './services/envConfig.js';
 import { runIntelligence, cancelIntelligence } from './services/intelligenceEngine.js';
 import { getDashboardSnapshot } from './services/dashboardData.js';
 import {
@@ -37,6 +44,12 @@ import {
   markNotificationsRead,
 } from './services/liveSyncDb.js';
 import { openSyncDb } from './services/syncDb.js';
+import {
+  buildJobOfferRoutingRules,
+  scanJobOffers,
+} from './services/jobOfferScan.js';
+import { JOB_OFFERS_FOLDER } from '../shared/jobOfferDetection.js';
+import type { JobOfferOrganizeResult } from '../shared/jobOfferDetection.js';
 import { suggestionFromRow } from './workers/analyzers/types.js';
 import {
   init as initUserDb,
@@ -48,6 +61,8 @@ import {
   setLinkedAccountFlag,
   changePassword,
   listLinkedAccounts,
+  updateUserProfile,
+  updateLinkedAccountLabel,
   ValidationError,
   type UserRow,
 } from './services/userDb.js';
@@ -425,6 +440,9 @@ function toUser(u: UserRow): User {
     id: u.id,
     username: u.username,
     email: u.email,
+    displayName: u.displayName?.trim() || u.username,
+    avatarEmoji: u.avatarEmoji ?? null,
+    avatarImage: u.avatarImage ?? null,
     createdAt: u.createdAt,
     lastLogin: u.lastLogin ?? null,
   };
@@ -537,67 +555,52 @@ export function registerIpc() {
     }
   );
 
-  // ─── OAuth setup helpers ──────────────────────────────────────────
-  ipcMain.handle(IPC.OAuthConfigStatus, async () => {
-    const envPath = path.resolve(app.getAppPath(), '.env');
-    const envExists = fs.existsSync(envPath);
-    // Re-read .env from disk on every call so the user can hit "Re-check"
-    // after editing the file without a full app restart.
-    if (envExists) {
+  ipcMain.handle(
+    IPC.UserUpdateProfile,
+    async (
+      _evt,
+      payload: {
+        displayName?: string;
+        email?: string;
+        avatarEmoji?: string | null;
+        avatarImage?: string | null;
+      }
+    ) => {
       try {
-        const text = fs.readFileSync(envPath, 'utf8');
-        for (const raw of text.split(/\r?\n/)) {
-          const line = raw.trim();
-          if (!line || line.startsWith('#')) continue;
-          const eq = line.indexOf('=');
-          if (eq < 0) continue;
-          const key = line.slice(0, eq).trim();
-          let val = line.slice(eq + 1).trim();
-          if (
-            (val.startsWith('"') && val.endsWith('"')) ||
-            (val.startsWith("'") && val.endsWith("'"))
-          ) {
-            val = val.slice(1, -1);
-          }
-          // Always overwrite so values get cleared if the user removes them.
-          process.env[key] = val;
-        }
-      } catch (err) {
-        console.warn('[oauth] failed to re-read .env:', (err as Error).message);
+        const u = requireUser();
+        const updated = updateUserProfile(u.id, payload);
+        setCurrentUser(updated);
+        return { ok: true as const, user: toUser(updated) };
+      } catch (e) {
+        return { ok: false as const, error: unwrapAuthError(e) };
       }
     }
-    const googleId = (process.env.VITE_GOOGLE_CLIENT_ID ?? '').trim();
-    const googleSecret = (process.env.VITE_GOOGLE_CLIENT_SECRET ?? '').trim();
-    const msId = (process.env.VITE_MICROSOFT_CLIENT_ID ?? '').trim();
-    return {
-      google: {
-        configured: !!googleId && !!googleSecret,
-        clientId: !!googleId,
-        clientSecret: !!googleSecret,
-      },
-      microsoft: {
-        configured: !!msId,
-        clientId: !!msId,
-      },
-      envPath,
-      envExists,
-    };
-  });
+  );
+
+  // ─── OAuth setup helpers ──────────────────────────────────────────
+  ipcMain.handle(IPC.OAuthConfigStatus, async () => oauthEnvStatus());
 
   ipcMain.handle(IPC.OAuthOpenEnv, async () => {
-    const envPath = path.resolve(app.getAppPath(), '.env');
-    const examplePath = path.resolve(app.getAppPath(), '.env.example');
-    // If the user hasn't created .env yet, seed it from the example so they
-    // have something to fill in instead of staring at a missing-file error.
+    loadOAuthEnv();
+    const envPath = resolveUserEnvPath();
+    seedUserEnvIfMissing();
+    const exampleCandidates = [
+      path.join(process.resourcesPath, '.env.example'),
+      path.resolve(app.getAppPath(), '.env.example'),
+    ];
     try {
-      if (!fs.existsSync(envPath) && fs.existsSync(examplePath)) {
-        fs.copyFileSync(examplePath, envPath);
+      if (!fs.existsSync(envPath)) {
+        for (const examplePath of exampleCandidates) {
+          if (fs.existsSync(examplePath)) {
+            fs.copyFileSync(examplePath, envPath);
+            break;
+          }
+        }
       }
     } catch (err) {
       console.warn('[oauth] could not seed .env:', (err as Error).message);
     }
     if (fs.existsSync(envPath)) {
-      // Show the file in Finder + open in default editor.
       shell.showItemInFolder(envPath);
       try {
         await shell.openPath(envPath);
@@ -758,11 +761,27 @@ export function registerIpc() {
     return storage.listAccounts().filter((p) => linkedKeys.has(p.id));
   });
 
+  ipcMain.handle(
+    IPC.AuthUpdateAccount,
+    async (_evt, accountId: string, patch: { name?: string }) => {
+      const me = requireOwnedAccount(accountId);
+      if (patch.name !== undefined) {
+        const current = storage.listAccounts().find((p) => p.id === accountId);
+        const name = patch.name.trim().slice(0, 64);
+        const fallback = current?.email.split('@')[0] ?? accountId.split(':')[1] ?? accountId;
+        storage.patchAccount(accountId, { name: name || fallback });
+        updateLinkedAccountLabel(me.id, accountId, name || fallback);
+      }
+      return storage.listAccounts().find((p) => p.id === accountId) ?? null;
+    }
+  );
+
   // ─── Sync engine ───────────────────────────────────────────────────
   ipcMain.handle(
     IPC.SyncProbe,
     async (_evt, accountId: string, range: TimeRange): Promise<number> => {
       requireOwnedAccount(accountId);
+      assertOAuthForAccount(accountId);
       const c = clientFor(accountId);
       try {
         return c.kind === 'google'
@@ -779,6 +798,7 @@ export function registerIpc() {
     IPC.SyncStart,
     async (_evt, accountId: string, opts: FetchOptions): Promise<string> => {
       requireOwnedAccount(accountId);
+      assertOAuthForAccount(accountId);
       return startSync(accountId, opts);
     }
   );
@@ -1175,6 +1195,127 @@ export function registerIpc() {
       return c.kind === 'google'
         ? await c.gmail.getMessagePreview(messageId)
         : await c.graph.getMessagePreview(messageId);
+    }
+  );
+
+  ipcMain.handle(IPC.EmailsScanJobOffers, async (_evt, accountId: string) => {
+    requireOwnedAccount(accountId);
+    const db = openSyncDb(accountId);
+    try {
+      return scanJobOffers(db, accountId);
+    } finally {
+      db.close();
+    }
+  });
+
+  ipcMain.handle(
+    IPC.EmailsOrganizeJobOffers,
+    async (
+      _evt,
+      accountId: string,
+      payload?: { messageIds?: string[] }
+    ): Promise<JobOfferOrganizeResult> => {
+      requireOwnedAccount(accountId);
+      const profile = storage.listAccounts().find((a) => a.id === accountId);
+      if (!profile) {
+        return {
+          folder: null,
+          moved: 0,
+          failed: 0,
+          rulesCreated: 0,
+          rulesFailed: 0,
+          error: 'Account not found',
+        };
+      }
+
+      const c = clientFor(accountId);
+      const db = openSyncDb(accountId);
+      try {
+        const scan = scanJobOffers(db, accountId);
+        const selected =
+          payload?.messageIds?.length && payload.messageIds.length > 0
+            ? scan.matches.filter((m) => payload.messageIds!.includes(m.id))
+            : scan.matches;
+
+        if (!selected.length) {
+          return {
+            folder: null,
+            moved: 0,
+            failed: 0,
+            rulesCreated: 0,
+            rulesFailed: 0,
+            error: scan.needsSync
+              ? 'Run Analyze first to scan your mailbox for job emails.'
+              : 'No job-related emails found in Inbox or Junk.',
+          };
+        }
+
+        const existingFolders =
+          c.kind === 'google' ? await c.gmail.listLabels() : await c.graph.listMailFolders();
+        let folder =
+          existingFolders.find((f) => f.name.toLowerCase() === JOB_OFFERS_FOLDER.toLowerCase()) ??
+          null;
+
+        if (!folder) {
+          folder =
+            c.kind === 'google'
+              ? await c.gmail.createLabel(JOB_OFFERS_FOLDER)
+              : await c.graph.createMailFolder(JOB_OFFERS_FOLDER);
+        }
+
+        const messageIds = selected.map((m) => m.id);
+        const markNotJunk = selected.some((m) => m.inJunk);
+        let moved = 0;
+        let failed = 0;
+
+        if (c.kind === 'google') {
+          try {
+            const remove: string[] = ['INBOX'];
+            if (markNotJunk) remove.push('SPAM');
+            await c.gmail.batchModifyLabels(messageIds, [folder.id], remove);
+            moved = messageIds.length;
+          } catch {
+            failed = messageIds.length;
+          }
+        } else {
+          for (const id of messageIds) {
+            try {
+              await c.graph.moveMessage(id, folder.id);
+              moved += 1;
+            } catch {
+              failed += 1;
+            }
+          }
+        }
+
+        const rules = buildJobOfferRoutingRules(folder, selected, profile.provider);
+        let rulesCreated = 0;
+        let rulesFailed = 0;
+        const list = storage.getRules(accountId);
+        for (const rule of rules) {
+          try {
+            const created =
+              c.kind === 'google'
+                ? await c.gmail.createFilter(rule)
+                : await c.graph.createRule(rule);
+            list.push(created);
+            rulesCreated += 1;
+          } catch {
+            rulesFailed += 1;
+          }
+        }
+        if (rulesCreated > 0) storage.setRules(accountId, list);
+
+        return {
+          folder: { id: folder.id, name: folder.name },
+          moved,
+          failed,
+          rulesCreated,
+          rulesFailed,
+        };
+      } finally {
+        db.close();
+      }
     }
   );
 
