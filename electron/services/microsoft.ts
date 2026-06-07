@@ -190,6 +190,40 @@ export class GraphClient {
     await this.http.post(`/me/messages/${id}/move`, { destinationId: destinationFolderId });
   }
 
+  /** Find messages whose From address contains `needle` (domain or email fragment). */
+  async listMessagesBySenderContains(
+    needle: string,
+    opts: { maxMessages?: number } = {}
+  ): Promise<Array<{ id: string; folderId?: string; fromEmail: string }>> {
+    const max = opts.maxMessages ?? 5000;
+    const sanitized = needle.replace(/"/g, '').replace(/'/g, '').toLowerCase();
+    const out: Array<{ id: string; folderId?: string; fromEmail: string }> = [];
+
+    let url: string | undefined =
+      `/me/messages?$top=200&$select=id,from,parentFolderId&$search=${encodeURIComponent(`"from:${sanitized}"`)}`;
+
+    while (url && out.length < max) {
+      const resp: {
+        data: { value: GraphMessage[]; '@odata.nextLink'?: string };
+      } = await this.http.get(url, {
+        headers: { ConsistencyLevel: 'eventual' },
+      });
+      for (const m of resp.data.value) {
+        const fromEmail = (m.from?.emailAddress?.address ?? '').toLowerCase();
+        if (!fromEmail.includes(sanitized)) continue;
+        out.push({
+          id: m.id,
+          folderId: m.parentFolderId,
+          fromEmail,
+        });
+        if (out.length >= max) break;
+      }
+      const next = resp.data['@odata.nextLink'];
+      url = next ? next.replace(GRAPH, '') : undefined;
+    }
+    return out;
+  }
+
   async listMailFolders(): Promise<Folder[]> {
     const byId = new Map<string, Folder>();
     const systemNames = new Set([

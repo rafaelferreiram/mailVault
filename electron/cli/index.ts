@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { runAuthTest } from './testAuth.js';
 import { runUserTest } from './testUser.js';
 import { runStandaloneApiTest } from './testApi.js';
+import { runRoutingApply } from './applyRouting.js';
 
 type TestKey =
   | 'auth:google'
@@ -9,6 +10,7 @@ type TestKey =
   | 'api:gmail'
   | 'api:microsoft'
   | 'user'
+  | 'routing:apply'
   | 'all';
 
 const VALID_TESTS: ReadonlyArray<TestKey> = [
@@ -17,15 +19,22 @@ const VALID_TESTS: ReadonlyArray<TestKey> = [
   'api:gmail',
   'api:microsoft',
   'user',
+  'routing:apply',
   'all',
 ];
 
-function parseArgs(argv: string[]): { test: TestKey | null; help: boolean } {
+function parseArgs(argv: string[]): {
+  test: TestKey | null;
+  help: boolean;
+  email: string | null;
+} {
   const cliArgs = argv.slice(argv.indexOf('--cli') + 1).filter((a) => !a.startsWith('--cli'));
   const help = cliArgs.includes('--help') || cliArgs.includes('-h');
   const testFlag = cliArgs.find((a) => a.startsWith('--test='));
   const test = testFlag ? (testFlag.slice('--test='.length) as TestKey) : null;
-  return { test, help };
+  const emailFlag = cliArgs.find((a) => a.startsWith('--email='));
+  const email = emailFlag ? emailFlag.slice('--email='.length) : null;
+  return { test, help, email };
 }
 
 function printHelp() {
@@ -41,6 +50,9 @@ function printHelp() {
   console.log(`    ${chalk.green('api:gmail')}        4 Gmail API tests against the most-recently-stored Google account`);
   console.log(`    ${chalk.green('api:microsoft')}    4 Graph API tests against the most-recently-stored Microsoft account`);
   console.log(`    ${chalk.green('user')}             Local SQLite + bcrypt user system smoke test`);
+  console.log(
+    `    ${chalk.green('routing:apply')}  Create preset rules + move historical mail (--email=you@example.com)`
+  );
   console.log(`    ${chalk.green('all')}              Run user, then auth:google, then auth:microsoft (skips on missing creds)`);
   console.log('');
   console.log(`  Examples:`);
@@ -62,7 +74,7 @@ function hasMicrosoftCreds() {
 }
 
 export async function runCli(argv: string[]): Promise<number> {
-  const { test, help } = parseArgs(argv);
+  const { test, help, email } = parseArgs(argv);
 
   if (help || !test) {
     printHelp();
@@ -118,6 +130,15 @@ export async function runCli(argv: string[]): Promise<number> {
         exitCode = r.passed === r.total ? 0 : 1;
         break;
       }
+      case 'routing:apply': {
+        if (!email) {
+          console.log(chalk.red('  Missing --email=you@example.com'));
+          return 2;
+        }
+        const r = await runRoutingApply(email);
+        exitCode = r.ok ? 0 : 1;
+        break;
+      }
       case 'all': {
         let totalPassed = 0;
         let totalRun = 0;
@@ -165,6 +186,9 @@ export async function runCli(argv: string[]): Promise<number> {
   } catch (e) {
     console.log('');
     console.log(chalk.red(`  Fatal: ${(e as Error).message}`));
+    if ((e as { response?: { data?: unknown } }).response?.data) {
+      console.log(chalk.dim(JSON.stringify((e as { response: { data: unknown } }).response.data)));
+    }
     console.log('');
     exitCode = 1;
   }
